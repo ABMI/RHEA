@@ -1,0 +1,164 @@
+cohortDefinitionId,cohortName,type,conceptId
+1,Fluorouracil and Bevacizumab,Regimen,905678
+2,FOLFIRINOX and Bevacizumab,Regimen,905687
+3,Capecitabine and Cisplatin (CX) and Bevacizumab,Regimen,905808
+4,CBM,Regimen,911921
+5,Cisplatin and Bevacizumab,Regimen,911954
+6,"Carboplatin, Doxorubicin liposomal, Bevacizumab",Regimen,911987
+7,Olaparib and Bevacizumab,Regimen,912013
+8,Ixabepilone and Bevacizumab,Regimen,912031
+9,Trifluridine and tipiracil and Bevacizumab,Regimen,912070
+10,FOLF-CB,Regimen,912223
+11,Bortezomib and Bevacizumab,Regimen,912234
+12,Lung excision,Surgery,4000882
+13,Radiation oncology AND/OR radiotherapy,RT,4029715
+14,SOX and Bevacizumab,Regimen,35101262
+15,mFOLFOX7 (L-Leucovorin),Regimen,35101642
+16,mFOLFOX6-B (L-Leucovorin),Regimen,35101643
+17,mFOLFOX6 (L-Leucovorin),Regimen,35101644
+18,FOLFOX4 (L-Leucovorin),Regimen,35102004
+19,FOLFOX 7/sLV5FU2 (L-Leucovorin),Regimen,35102005
+20,FOLFIRI and Cetuximab (L-Leucovorin),Regimen,35102006
+21,FOLFIRI and Bevacizumab (L-Leucovorin),Regimen,35102007
+22,FOLFIRI (L-Leucovorin),Regimen,35102008
+23,Fluorouracil and Levoleucovorin,Regimen,35102009
+24,FULV/FULV and RT,Regimen and RT,35102019
+25,Carboplatin and Paclitaxel,Regimen,35803572
+26,Cisplatin and Docetaxel,Regimen,35803574
+27,Erlotinib and Bevacizumab,Regimen,35803579
+28,Nivolumab monotherapy,Regimen,35803677
+29,Pembrolizumab monotherapy,Regimen,35803678
+30,Bevacizumab monotherapy,Regimen,35803688
+31,Carboplatin and Bevacizumab,Regimen,35803689
+32,Irinotecan monotherapy,Regimen,35803692
+33,Irinotecan and Bevacizumab,Regimen,35803693
+34,Doxorubicin monotherapy,Regimen,35804134
+35,Gemcitabine monotherapy,Regimen,35804135
+36,Carboplatin and Gemcitabine,Regimen,35804156
+37,Docetaxel monotherapy,Regimen,35804162
+38,Paclitaxel monotherapy,Regimen,35804166
+39,Pemetrexed monotherapy,Regimen,35804168
+40,AC,Regimen,35804199
+41,TH (Taxol),Regimen,35804201
+42,Cyclophosphamide and Doxorubicin (AC) and Bevacizumab,Regimen,35804206
+43,Docetaxel and Bevacizumab,Regimen,35804207
+44,FEC,Regimen,35804212
+45,FAC,Regimen,35804216
+46,THP (Taxotere),Regimen,35804217
+47,TH (Taxotere),Regimen,35804220
+48,Tamoxifen monotherapy,Regimen,35804221
+49,Trastuzumab monotherapy,Regimen,35804222
+50,CMF,Regimen,35804224
+51,AT (Taxol),Regimen,35804226
+52,Capecitabine monotherapy,Regimen,35804227
+53,Epirubicin monotherapy,Regimen,35804228
+54,Vinorelbine monotherapy,Regimen,35804241
+55,Lapatinib and Trastuzumab,Regimen,35804243
+56,AT (Taxotere),Regimen,35804244
+57,Capecitabine and Bevacizumab,Regimen,35804245
+58,Cyclophosphamide and Epirubicin (EC) and Bevacizumab,Regimen,35804250
+59,FAC and Bevacizumab,Regimen,35804252
+60,FEC and Bevacizumab,Regimen,35804253
+61,Paclitaxel and Bevacizumab,Regimen,35804255
+62,"Paclitaxel, nanoparticle albumin-bound and Bevacizumab",Regimen,35804256
+63,S-1 monotherapy,Regimen,35804257
+64,Cisplatin and Vinorelbine,Regimen,35804260
+65,Doxorubicin and Bevacizumab,Regimen,35804261
+66,Doxorubicin non-pegylated liposomal and Bevacizumab,Regimen,35804263
+67,Doxorubicin pegylated liposomal and Bevacizumab,Regimen,35804264
+68,Eribulin monotherapy,Regimen,35804265
+69,Gemcitabine and Bevacizumab,Regimen,35804266
+70,Vinorelbine and Bevacizumab,Regimen,35804268
+71,Anastrozole monotherapy,Regimen,35804271
+72,Letrozole monotherapy,Regimen,35804273
+73,Toremifene monotherapy,Regimen,35804279
+74,Letrozole and Bevacizumab,Regimen,35804286
+75,"Capecitabine, Bevacizumab, Trastuzumab",Regimen,35804310
+76,Capecitabine and Lapatinib,Regimen,35804311
+77,Pertuzumab and Trastuzumab,Regimen,35804314
+78,Ceritinib monotherapy,Regimen,35804391
+79,Afatinib monotherapy,Regimen,35804392
+80,Osimertinib monotherapy,Regimen,35804394
+81,Fluorouracil and RT,Regimen and RT,35804534
+82,"Cisplatin, Paclitaxel, Bevacizumab",Regimen,35804540
+83,"Paclitaxel, Topotecan, Bevacizumab",Regimen,35804544
+84,Fluorouracil and Folinic acid,Regimen,35804545
+85,GEMOX-B,Regimen,35804568
+86,CapeOx,Regimen,35804755
+87,FLOX,Regimen,35804756
+88,FOLFOX4,Regimen,35804757
+89,mFOLFOX6,Regimen,35804758
+90,"Tegafur, Uracil, Folinic acid",Regimen,35804759
+91,FOLFIRI,Regimen,35804761
+92,Hepatic arterial chemotherapy,Regimen,35804763
+93,Intraperitoneal 5-FU,Regimen,35804764
+94,Intraperitoneal hyperthermic mitomycin,Regimen,35804765
+95,CapeOx and Bevacizumab,Regimen,35804766
+96,CAPIRI,Regimen,35804767
+97,CAPIRI-Bev,Regimen,35804768
+98,Fluorouracil monotherapy,Regimen,35804769
+99,FOLFIRI and Bevacizumab,Regimen,35804770
+100,FOLFIRINOX,Regimen,35804771
+101,FOLFIRINOX and Bevacizumab (L-Leucovorin),Regimen,35804772
+102,FOLFOX2,Regimen,35804773
+103,FOLFOX 7/sLV5FU2,Regimen,35804774
+104,mFOLFOX7,Regimen,35804775
+105,FOLFOX4 and Bevacizumab,Regimen,35804776
+106,mFOLFOX6 and Bevacizumab,Regimen,35804777
+107,IFL,Regimen,35804778
+108,IFL and Bevacizumab,Regimen,35804779
+109,IRIS and Bevacizumab,Regimen,35804780
+110,IROX,Regimen,35804781
+111,Nordic FLOX,Regimen,35804782
+112,OXAFAFU,Regimen,35804783
+113,SOX,Regimen,35804784
+114,FOLFIRI and Ramucirumab,Regimen,35804786
+115,FOLFIRI and Ziv-aflibercept,Regimen,35804787
+116,Trifluridine and tipiracil monotherapy,Regimen,35804789
+117,mFOLFOX6 and Cetuximab,Regimen,35804790
+118,CapeOx and Panitumumab,Regimen,35804791
+119,FOLFIRI and Cetuximab,Regimen,35804792
+120,FOLFOX4 and Cetuximab,Regimen,35804793
+121,FOLFOX4 and Panitumumab,Regimen,35804794
+122,Cetuximab monotherapy,Regimen,35804795
+123,mFOLFOXIRI and Cetuximab (L-Leucovorin),Regimen,35804796
+124,FOLFIRI and Panitumumab,Regimen,35804797
+125,Irinotecan and Cetuximab,Regimen,35804798
+126,Panitumumab monotherapy,Regimen,35804800
+127,Erlotinib monotherapy,Regimen,35805229
+128,Cisplatin and Etoposide,Regimen,35805329
+129,"Fluorouracil, Oxaliplatin, RT",Regimen and RT,35805353
+130,mDCF and Bevacizumab,Regimen,35805365
+131,Bevacizumab and Rituximab,Regimen,35805645
+132,Bevacizumab and RT,Regimen and RT,35805711
+133,ABC,Regimen,35806122
+134,Temozolomide and Bevacizumab,Regimen,35806135
+135,Cisplatin and Pemetrexed,Regimen,35806173
+136,"Cisplatin, Pemetrexed, Bevacizumab",Regimen,35806175
+137,Carboplatin and Paclitaxel (CP) and Bevacizumab,Regimen,35806401
+138,ABCP,Regimen,35806407
+139,Atezolizumab and Bevacizumab,Regimen,35806408
+140,"Carboplatin, Pemetrexed, Bevacizumab",Regimen,35806409
+141,Pemetrexed and Bevacizumab,Regimen,35806410
+142,Cisplatin and Gemcitabine (GC) and Bevacizumab,Regimen,35806411
+143,Gefitinib monotherapy,Regimen,35806413
+144,Crizotinib monotherapy,Regimen,35806424
+145,Carboplatin and Gemcitabine (GCb) and Bevacizumab,Regimen,35806482
+146,Topotecan and Bevacizumab,Regimen,35806489
+147,Fluorouracil/Fluorouracil and RT,Regimen and RT,35806583
+148,FOLFOX,Regimen,35806596
+149,Capecitabine and RT,Regimen and RT,35806890
+150,"Capecitabine, Sorafenib, RT",Regimen and RT,35806892
+151,"CapeOx, Cetuximab, RT",Regimen and RT,35806893
+152,"Fluorouracil, Folinic acid, RT",Regimen and RT,35806894
+153,mFOLFOX6 and RT,Regimen and RT,35806895
+154,Capecitabine/Capecitabine and RT,Regimen and RT,35806897
+155,Bevacizumab and Interferon alfa-2a,Regimen,35806902
+156,"Carboplatin, Etoposide, Bevacizumab",Regimen,35806942
+157,"Cisplatin, Etoposide, Bevacizumab",Regimen,35806945
+158,Oxaliplatin and Bevacizumab,Regimen,35807025
+159,Mastectomy,Surgery,37520714
+160,Colectomy,Surgery,37521041
+161,Afatinib and Bevacizumab,Regimen,42542278
+162,FULV and Bevacizumab,Regimen,42542361
+163,Lomustine and Bevacizumab,Regimen,42542366

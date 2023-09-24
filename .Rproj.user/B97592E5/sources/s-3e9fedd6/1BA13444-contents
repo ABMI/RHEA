@@ -1,0 +1,247 @@
+#' createCohortTable function
+#'
+#' This is a function which can create a sample Cohort Table
+#'
+#'
+#' @param connection
+#' @param cdmDatabaseSchema
+#' @param cohortDatabaseSchema
+#' @param cohortTable
+#' @param DiganosisConceptID
+#' @param targetCohortId
+
+#' @export loadCohortTable
+loadCohortTable <- function(){
+  sql_loadCohort <- "select a.cohort_definition_id, a.subject_id, a.cohort_start_date, a.cohort_end_date, d.year_of_birth, year(a.cohort_start_date)-d.year_of_birth as diagnosis_age, d.gender_source_value, b.condition_concept_id, c.concept_name, b.condition_start_date, e.death_date, z.value_as_concept_id, z.measurement_source_value
+From @target_database_schema.@target_cohort_table a
+left outer join @cdm_database_schema.condition_occurrence b on a.subject_id = b.person_id
+left outer join @cdm_database_schema.person d on a.subject_id = d.person_id
+left outer join @cdm_database_schema.CONCEPT c on b.condition_concept_id = c.concept_id
+left outer join @cdm_database_schema.death e on a.subject_id = e.person_id
+left outer join @cdm_database_schema.cancer_measurement z on a.subject_id = z.person_id;"
+
+  sql_loadCohort <- SqlRender::render(sql_loadCohort,
+                                      cdm_database_schema = cdmDatabaseSchema,
+                                      target_database_schema = cohortDatabaseSchema,
+                                      target_cohort_table = cohortTable
+                                      )
+
+  loadTable <- as.data.frame(DatabaseConnector::querySql(connection,
+                                                         sql_loadCohort))
+
+  # Change the sex name
+  loadTable$GENDER_SOURCE_VALUE <- gsub("F", "Female", loadTable$GENDER_SOURCE_VALUE)
+  loadTable$GENDER_SOURCE_VALUE <- gsub("M", "Male", loadTable$GENDER_SOURCE_VALUE)
+
+  # Add the age group column
+  loadTable <- loadTable %>%
+    mutate(ageGroup = as.numeric((DIAGNOSIS_AGE %/% 10) * 10))
+
+  return(loadTable)
+}
+
+
+#' @export loadReportTable
+loadReportTable <- function(){
+  # load note data
+  sql_note <- "SELECT distinct SUBJECT_ID, cohort_start_date, cohort_end_date into #uniquePt
+              from @cohort_database_schema.@cohort_table
+
+              SELECT b.note_id, b.person_id, b.note_date, b.note_title, b.note_text
+              from #uniquePt a
+              left join @cdm_database_schema.note b on a.SUBJECT_ID = b.person_id
+              where b.note_title like 'Pathology%'
+              and b.note_date between CONVERT(Date, a.cohort_start_date)
+                                  and CONVERT(Date, a.cohort_end_date)
+
+              drop table #uniquePt;"
+
+  sql_note <- SqlRender::render(sql_note,
+                                cohort_database_schema = cohortDatabaseSchema,
+                                cdm_database_schema = cdmDatabaseSchema,
+                                cohort_table = cohortTable)
+
+  pathologyReport <- as.data.frame(DatabaseConnector::querySql(connection, sql_note))
+  pathologyReport$NOTE_TEXT <- gsub('<.{1,10}>|&#x0d;|H&amp;|&gt;|&lt;|&amp;|&quot;', ' ',
+                                    pathologyReport$NOTE_TEXT,
+                                    perl = T)
+
+  # choose only Biopsy report
+  pathologyReport$RESULT_TYPE <- NA
+  pathologyReport$onlyBiopsyReport <- NA
+  pathologyReport$onlyColorectalReport <- NA
+  for (i in 1:nrow(pathologyReport)){
+    if (grepl("Biopsy Result", pathologyReport$NOTE_TEXT[i]) == F){
+      pathologyReport$onlyBiopsyReport[i] <- "no biopsy results"
+    }else if (regexpr("Gross Result", pathologyReport$NOTE_TEXT[i])[1] < 10){
+      pathologyReport$onlyBiopsyReport[i] <- substring(pathologyReport$NOTE_TEXT[i],
+                                                       first = regexpr("Biopsy Result", pathologyReport$NOTE_TEXT[i])[1])
+    }else{
+      pathologyReport$onlyBiopsyReport[i] <- substring(pathologyReport$NOTE_TEXT[i],
+                                                       first = regexpr("Biopsy Result", pathologyReport$NOTE_TEXT[i])[1],
+                                                       last = regexpr("Gross Result", pathologyReport$NOTE_TEXT[i])[1]-1)
+    }
+    # split result type and reports
+    pathologyReport$RESULT_TYPE[i] <- substring(pathologyReport$onlyBiopsyReport[i],
+                                                first = 0,
+                                                last = str_locate(pathologyReport$onlyBiopsyReport[i],
+                                                                  "Biopsy Result:\\s+")[2])
+    pathologyReport$onlyBiopsyReport[i] <- substring(pathologyReport$onlyBiopsyReport[i],
+                                                     first = str_locate(pathologyReport$onlyBiopsyReport[i],
+                                                                        "Biopsy Result:\\s+")[2]+1)
+
+    # choose only colorectal pathology report
+    if(grepl("Rectum|rectal|Colon|colitis|Rectosigmoid\\sjuction|rectosigmoid\\sjunctional\\sca|LST",
+             pathologyReport$onlyBiopsyReport[i],
+             ignore.case = T)){
+      pathologyReport$onlyColorectalReport[i] <- "YES"
+    }else{
+      pathologyReport$onlyColorectalReport[i] <- "No"
+    }
+  }
+
+  pathologyReport <- pathologyReport %>%
+    filter(onlyColorectalReport == "YES") %>%
+    select(NOTE_ID, PERSON_ID, NOTE_DATE, NOTE_TITLE, RESULT_TYPE, onlyBiopsyReport)
+
+  # trim blank
+  pathologyReport$RESULT_TYPE <- gsub("^\\s+", "", pathologyReport$RESULT_TYPE)
+  pathologyReport$RESULT_TYPE <- gsub(":\\s+", "", pathologyReport$RESULT_TYPE)
+
+  crcPtBioNote <- pathologyReport
+  ### Biomarker ####
+  # MSI
+  crcPtBioNote$MSI <- substr(crcPtBioNote$onlyBiopsyReport,
+                             (str_locate(crcPtBioNote$onlyBiopsyReport,
+                                         "(MSI)(.+)(yes|no)(\\s+)")[,2])+1,
+                             (str_locate(crcPtBioNote$onlyBiopsyReport,
+                                         "(MSI)(.+)(yes|no)(\\s+)(.+)")[,2])+3)
+
+  crcPtBioNote$MSI <- gsub("(\n|\\s+\n|\r)(.+)", "", crcPtBioNote$MSI)
+  crcPtBioNote$MSI <- gsub("MSI-H|MSI-high|MSI-High", "High", crcPtBioNote$MSI)
+  crcPtBioNote$MSI <- gsub("MSI-L|MSI-low|MSI-Low", "Low", crcPtBioNote$MSI)
+  crcPtBioNote$MSI <- gsub("MSS-high|MSS-High|MSS-low|MSS-Low|MSS", "Stable", crcPtBioNote$MSI)
+
+  # K-ras
+  crcPtBioNote$Kras <- substr(crcPtBioNote$onlyBiopsyReport,
+                              (str_locate(crcPtBioNote$onlyBiopsyReport,
+                                          "(Kras mutation is)(\\s+)")[,2]+1),
+                              (str_locate(crcPtBioNote$onlyBiopsyReport,
+                                          "(Kras mutation is)(.+)(detected)")[,2]))
+  for(i in 1:nrow(crcPtBioNote)){
+    if(is.na(crcPtBioNote$Kras[i])){
+      crcPtBioNote$Kras[i] <- substr(crcPtBioNote$onlyBiopsyReport[i],
+                                     (str_locate(crcPtBioNote$onlyBiopsyReport[i],
+                                                 "(\n)(.+)(KRAS,)(.+)(detected)")[,1]),
+                                     (str_locate(crcPtBioNote$onlyBiopsyReport[i],
+                                                 "(\n)(.+)(KRAS,)(.+)(detected)")[,2]))}
+  }
+  for(i in 1:nrow(crcPtBioNote)){
+    if(is.na(crcPtBioNote$Kras[i])){
+      crcPtBioNote$Kras[i] <- NA
+    }else if(str_detect(crcPtBioNote$Kras[i],
+                        "^detected")){
+      crcPtBioNote$Kras[i] <- "detected"
+    }else if(str_detect(crcPtBioNote$Kras[i],
+                        "^not detected")){
+      crcPtBioNote$Kras[i] <- "not detected"
+    }else if(str_detect(crcPtBioNote$Kras[i],
+                        "(\n)(No)|(Genomic)(.+)(not)|(No clinically)")){
+      crcPtBioNote$Kras[i] <- "not detected"
+    }else{
+      crcPtBioNote$Kras[i] <- "detected"
+    }
+  }
+
+  crcPtBioNote$Kras <- ifelse(crcPtBioNote$Kras=="detected", "Mutant type",
+                              ifelse(crcPtBioNote$Kras=="not detected", "Wild type", NA))
+
+  # N-ras
+  crcPtBioNote$Nras <- substr(crcPtBioNote$onlyBiopsyReport,
+                              (str_locate(crcPtBioNote$onlyBiopsyReport,
+                                          "(N-ras\\s)(.+)|(\nNras\\s)")[,1]),
+                              (str_locate(crcPtBioNote$onlyBiopsyReport,
+                                          "(N-ras\\s)(.+)|(\nNras mutation is)(.+)(detected)")[,2]))
+  for(i in 1:nrow(crcPtBioNote)){
+    if(is.na(crcPtBioNote$Nras[i])){
+      crcPtBioNote$Nras[i] <- substr(crcPtBioNote$onlyBiopsyReport[i],
+                                     (str_locate(crcPtBioNote$onlyBiopsyReport[i],
+                                                 "(\n)(.+)(NRAS,)(.+)(detected)")[,1]),
+                                     (str_locate(crcPtBioNote$onlyBiopsyReport[i],
+                                                 "(\n)(.+)(NRAS,)(.+)(detected)")[,2]))}
+  }
+  for(i in 1:nrow(crcPtBioNote)){
+    if(is.na(crcPtBioNote$Nras[i])){
+      crcPtBioNote$Nras[i] <- NA
+    }else if(str_detect(crcPtBioNote$Nras[i],
+                        "(\nNras mutation)(.+)(is detected)")){
+      crcPtBioNote$Nras[i] <- "detected"
+    }else if(str_detect(crcPtBioNote$Nras[i],
+                        "(\nNras mutation)(.+)(not detected)")){
+      crcPtBioNote$Nras[i] <- "not detected"
+    }else if(str_detect(crcPtBioNote$Nras[i],
+                        "(N-ras 유전자)")){
+      crcPtBioNote$Nras[i] <- "not detected"
+    }else if(str_detect(crcPtBioNote$Nras[i],
+                        "(\n)(No)|(Genomic)(.+)(not)|(No clinically)")){
+      crcPtBioNote$Nras[i] <- "not detected"
+    }else{
+      crcPtBioNote$Nras[i] <- "detected"
+    }
+  }
+
+  crcPtBioNote$Nras <- ifelse(crcPtBioNote$Nras=="detected", "Mutant type",
+                              ifelse(crcPtBioNote$Nras=="not detected", "Wild type", NA))
+
+  # BRAF
+  crcPtBioNote$BRAF <- substr(crcPtBioNote$onlyBiopsyReport,
+                              str_locate(crcPtBioNote$onlyBiopsyReport,
+                                         "(BRAF)(.+)(;|:)")[,2],
+                              str_locate(crcPtBioNote$onlyBiopsyReport,
+                                         "(BRAF)(.+)(;|:)(.+)(tive)")[,2])
+
+  for(i in 1:nrow(crcPtBioNote)){
+    if(is.na(crcPtBioNote$BRAF[i])){
+      crcPtBioNote$BRAF[i] <- substr(crcPtBioNote$onlyBiopsyReport[i],
+                                     (str_locate(crcPtBioNote$onlyBiopsyReport[i],
+                                                 "(\n)(.+)(BRAF)(.+)(detected)")[,1]),
+                                     (str_locate(crcPtBioNote$onlyBiopsyReport[i],
+                                                 "(\n)(.+)(BRAF,)(.+)(detected)")[,2]))}
+  }
+
+  for(i in 1:nrow(crcPtBioNote)){
+    if(is.na(crcPtBioNote$BRAF[i])){
+      crcPtBioNote$BRAF[i] <- NA
+    }else if(str_detect(crcPtBioNote$BRAF[i],
+                        "(;\\s+negative|:\\s+Negative|:\\s+negative)")){
+      crcPtBioNote$BRAF[i] <- "not detected"
+    }else if(str_detect(crcPtBioNote$BRAF[i],
+                        "(; positive)")){
+      crcPtBioNote$BRAF[i] <- "detected"
+    }else if(str_detect(crcPtBioNote$BRAF[i],
+                        "(\n)(No)|(Genomic)(.+)(not)|(No clinically)")){
+      crcPtBioNote$BRAF[i] <- "not detected"
+    }else{
+      crcPtBioNote$BRAF[i] <- "detected"
+    }
+  }
+
+  crcPtBioNote$BRAF <- ifelse(crcPtBioNote$BRAF=="detected", "Positive",
+                              ifelse(crcPtBioNote$BRAF=="not detected", "Negative", NA))
+
+  crcPtBioNote <- crcPtBioNote %>%
+    rename('SUBJECT_ID' = 'PERSON_ID')
+
+  return(crcPtBioNote)
+}
+
+#' @export loadEpisodTable
+loadEpisodTable <- function(){
+  sql_episodes <- "SELECT* FROM @cdm_Database_Schema.@episode_table;"
+  sql_episodes <- SqlRender::render(sql_episodes,
+                                    cdm_Database_Schema = cdmDatabaseSchema,
+                                    episode_table = episodeTable)
+  Episode <- as.data.frame(DatabaseConnector::querySql(connection, sql_episodes))
+  Episode <- Episode %>%
+    rename("SUBJECT_ID" = "PERSON_ID")
+}

@@ -1,0 +1,45 @@
+cohortDefinitionId,cohortName,type,conceptId
+1,Fluorouracil and Bevacizumab,Regimen,905678
+2,FOLFIRINOX and Bevacizumab,Regimen,905687
+3,Radiation oncology AND/OR radiotherapy,RT,4029715
+4,Low anterior resection of rectum,Surgery,4151121
+5,Anterior resection of rectum,Surgery,4166855
+6,Partial resection of colon,Surgery,4181781
+7,Enterostomy,Surgery,4314436
+8,mFOLFOX7 (L-Leucovorin),Regimen,35101642
+9,mFOLFOX6 (L-Leucovorin),Regimen,35101644
+10,FOLFIRI and Cetuximab (L-Leucovorin),Regimen,35102006
+11,FOLFIRI and Bevacizumab (L-Leucovorin),Regimen,35102007
+12,Fluorouracil and Levoleucovorin,Regimen,35102009
+13,Irinotecan monotherapy,Regimen,35803692
+14,Irinotecan and Bevacizumab,Regimen,35803693
+15,Capecitabine monotherapy,Regimen,35804227
+16,Capecitabine and Bevacizumab,Regimen,35804245
+17,Fluorouracil and RT,Regimen and RT,35804534
+18,CapeOx,Regimen,35804755
+19,mFOLFOX6,Regimen,35804758
+20,FOLFIRI,Regimen,35804761
+21,CapeOx and Bevacizumab,Regimen,35804766
+22,Fluorouracil monotherapy,Regimen,35804769
+23,FOLFIRI and Bevacizumab,Regimen,35804770
+24,FOLFIRINOX,Regimen,35804771
+25,FOLFIRINOX and Bevacizumab (L-Leucovorin),Regimen,35804772
+26,mFOLFOX7,Regimen,35804775
+27,FOLFOX4 and Bevacizumab,Regimen,35804776
+28,mFOLFOX6 and Bevacizumab,Regimen,35804777
+29,IROX,Regimen,35804781
+30,FOLFIRI and Ramucirumab,Regimen,35804786
+31,FOLFIRI and Ziv-aflibercept,Regimen,35804787
+32,mFOLFOX6 and Cetuximab,Regimen,35804790
+33,FOLFIRI and Cetuximab,Regimen,35804792
+34,FOLFOX4 and Cetuximab,Regimen,35804793
+35,FOLFOX4 and Panitumumab,Regimen,35804794
+36,Cetuximab monotherapy,Regimen,35804795
+37,FOLFIRI and Panitumumab,Regimen,35804797
+38,Irinotecan and Cetuximab,Regimen,35804798
+39,Panitumumab monotherapy,Regimen,35804800
+40,FOLFOX,Regimen,35806596
+41,Capecitabine and RT,Regimen and RT,35806890
+42,Capecitabine/Capecitabine and RT,Regimen and RT,35806897
+43,Colectomy,Surgery,37521041
+44,FULV and Bevacizumab,Regimen,42542361

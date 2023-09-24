@@ -1,0 +1,53 @@
+DBMS:
+sql server
+
+Error:
+com.microsoft.sqlserver.jdbc.SQLServerException: ')' 근처의 구문이 잘못되었습니다.
+
+SQL:
+SELECT A.PERSON_ID, A.DEATH_DATE, A.cause_source_concept_id, B.CONCEPT_NAME
+                    FROM CDMPv533_ABMI.dbo.death A, CDMPv533_ABMI.dbo.CONCEPT B
+                    where A.PERSON_ID in () and A.cause_source_concept_id = B.concept_id;
+
+R version:
+R version 4.1.0 (2021-05-18)
+
+Platform:
+x86_64-pc-linux-gnu
+
+Attached base packages:
+- stats
+- graphics
+- grDevices
+- utils
+- datasets
+- methods
+- base
+
+Other attached packages:
+- RColorBrewer (1.1-3)
+- htmlwidgets (1.5.4)
+- xml2 (1.3.3)
+- dplyr (1.1.0)
+- stringr (1.5.0)
+- gridExtra (2.3)
+- ggrepel (0.9.1)
+- DT (0.23)
+- summaryBox (0.1.0)
+- shinyWidgets (0.7.4)
+- shinythemes (1.2.0)
+- shinydashboard (0.7.2)
+- shinycssloaders (1.0.0)
+- shinyalert (3.0.0)
+- data.table (1.14.2)
+- quantmod (0.4.18)
+- TTR (0.24.3)
+- xts (0.12.1)
+- zoo (1.8-9)
+- plotly (4.10.0)
+- RSQLite (2.3.0)
+- plyr (1.8.8)
+- ggplot2 (3.4.1)
+- lubridate (1.9.1)
+- shiny (1.7.1)
+- RHEA (0.1.0)

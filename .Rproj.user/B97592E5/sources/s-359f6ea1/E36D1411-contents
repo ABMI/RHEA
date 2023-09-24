@@ -1,0 +1,10 @@
+Package: RHEA
+Type: Package
+Title:  Real-world observaional Health data Exploration Application (RHEA)
+Version: 0.1.0
+Author: Soobeen Seol
+Maintainer: Soobeen Seol <waterbeen53@gmail.com>
+Description: To illustrate the longitudinal status of patients with cancer, we created a standardized framework called RHEA that employs standardized data converted to OMOP-CDM.
+License: RHEA is licensed under Apache License 2.0
+Encoding: UTF-8
+LazyData: true

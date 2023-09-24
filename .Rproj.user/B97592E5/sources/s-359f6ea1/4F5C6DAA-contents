@@ -1,0 +1,10 @@
+#' runShinyApp function
+#'
+#' This is a function which can implement shinyApp
+#'
+#' @export runShinyApp
+
+runShinyApp <- function(){
+  filePath <- paste0(.libPaths()[1],"/RHEA/Dashboard")
+  shiny::runApp(filePath, launch.browser = TRUE)
+}

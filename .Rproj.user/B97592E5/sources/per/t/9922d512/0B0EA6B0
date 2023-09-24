@@ -1,0 +1,27 @@
+{
+    "id": "0B0EA6B0",
+    "path": "~/code/RHEA/R/chemotherapyRecordsExtraction.R",
+    "project_path": "R/chemotherapyRecordsExtraction.R",
+    "type": "r_source",
+    "hash": "975456823",
+    "contents": "",
+    "dirty": false,
+    "created": 1688452151636.0,
+    "source_on_save": false,
+    "relative_order": 4,
+    "properties": {
+        "tempName": "Untitled1",
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "59,45",
+        "scrollLine": "45"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1688450258,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1688450258,
+    "read_only": false,
+    "read_only_alternatives": []
+}

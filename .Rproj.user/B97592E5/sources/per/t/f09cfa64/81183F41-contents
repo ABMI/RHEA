@@ -1,0 +1,316 @@
+
+# load the cohort table 1)FOLFOX+Bev 2)FOLFIRI+Bev
+sql_FOLFOX_Bev <- "SELECT * FROM [cohortDb].[dbo].[seol_FOLFOX_Bev]"
+sql_FOLFIRI_Bev <- "SELECT * FROM [cohortDb].[dbo].[seol_FOLFIRI_Bev]"
+
+FOLFOX_Bev <- as.data.frame(DatabaseConnector::querySql(connection, sql_FOLFOX_Bev))
+FOLFIRI_Bev <- as.data.frame(DatabaseConnector::querySql(connection, sql_FOLFIRI_Bev))
+
+# Tag Tx
+FOLFOX_Bev$Tx <- "FOLFOX_Bev" #386
+FOLFIRI_Bev$Tx <- "FOLFIRI_Bev" #225
+
+p3Cohort <- rbind(FOLFOX_Bev, FOLFIRI_Bev) #2786
+
+# 같은기간 내 여러 ChemoTx 받은 환자 삭제 (어떤 치료를 먼저 받았는지 알 수 없음)
+p3Cohort <- p3Cohort %>%
+  group_by(SUBJECT_ID) %>%
+  filter(n() == 1) %>%
+  ungroup() #475
+
+
+######################################
+#### Table 1 Chemotherapy regimen ####
+######################################
+table(p3Cohort$Tx)
+# FOLFOX_Bev 318
+# FOLFIRI_Bev 157
+# total 475
+
+CohortID <- as.vector(p3Cohort$SUBJECT_ID)
+CohortID <- paste(CohortID, collapse = ", ")
+
+sql_cohortInfo <- "SELECT person_id, year_of_birth, gender_source_value
+  FROM CDMPv533_ABMI.dbo.person
+  WHERE person_id in (@Cohort_ID)"
+
+sql_cohortInfo <- SqlRender::render(sql_cohortInfo,
+                                    Cohort_ID = CohortID)
+
+Info <- as.data.frame(DatabaseConnector::querySql(connection,
+                                                  sql_cohortInfo))
+
+Table1 <- merge(p3Cohort, Info, by.x = "SUBJECT_ID", by.y = "PERSON_ID")
+Table1$age <- year(Table1$COHORT_START_DATE) - Table1$YEAR_OF_BIRTH
+
+#############################
+#### Table 1 Gender, Age ####
+#############################
+table(Table1$GENDER_SOURCE_VALUE)
+# F 172
+# M 303
+
+median(Table1$age)
+min(Table1$age)
+max(Table1$age)
+sum(Table1$age >= 65)
+sum(Table1$age >= 70)
+# median age 60
+# range 30 - 83
+# >=65 162
+# >=70 105
+
+
+# Site of primary tumor -> Colon, Rectum, Multiple
+sql_colon <- "SELECT * FROM cohortDb.dbo.seol_ca_colon WHERE SUBJECT_ID in (@Cohort_ID)"
+sql_colon <- SqlRender::render(sql_colon, Cohort_ID = CohortID)
+colon <- as.data.frame(DatabaseConnector::querySql(connection, sql_colon))
+# colon
+
+sql_rectum <- "SELECT * FROM cohortDb.dbo.seol_ca_colon WHERE SUBJECT_ID in (@Cohort_ID)"
+sql_rectum <- SqlRender::render(sql_rectum, Cohort_ID = CohortID)
+rectum <- as.data.frame(DatabaseConnector::querySql(connection, sql_rectum))
+# rectum
+
+# mulitple
+
+
+# Gene Mutation
+# load note data
+sql_note <- "SELECT note_id, person_id, note_date, note_title, note_text
+             from CDMPv533_ABMI.dbo.note
+             WHERE person_id in (@Cohort_ID) and note_title like 'Pathology%';"
+
+sql_note <- SqlRender::render(sql_note, Cohort_ID = CohortID)
+pathologyReport <- as.data.frame(DatabaseConnector::querySql(connection, sql_note))
+pathologyReport$NOTE_TEXT <- gsub('<.{1,10}>|&#x0d;|H&amp;|&gt;|&lt;|&amp;|&quot;', ' ',
+                                  pathologyReport$NOTE_TEXT,
+                                  perl = T)
+
+# choose only Biopsy report
+pathologyReport$RESULT_TYPE <- NA
+pathologyReport$onlyBiopsyReport <- NA
+pathologyReport$onlyColorectalReport <- NA
+for (i in 1:nrow(pathologyReport)){
+  if (grepl("Biopsy Result", pathologyReport$NOTE_TEXT[i]) == F){
+    pathologyReport$onlyBiopsyReport[i] <- "no biopsy results"
+  }else if (regexpr("Gross Result", pathologyReport$NOTE_TEXT[i])[1] < 10){
+    pathologyReport$onlyBiopsyReport[i] <- substring(pathologyReport$NOTE_TEXT[i],
+                                                     first = regexpr("Biopsy Result", pathologyReport$NOTE_TEXT[i])[1])
+  }else{
+    pathologyReport$onlyBiopsyReport[i] <- substring(pathologyReport$NOTE_TEXT[i],
+                                                     first = regexpr("Biopsy Result", pathologyReport$NOTE_TEXT[i])[1],
+                                                     last = regexpr("Gross Result", pathologyReport$NOTE_TEXT[i])[1]-1)
+  }
+  # split result type and reports
+  pathologyReport$RESULT_TYPE[i] <- substring(pathologyReport$onlyBiopsyReport[i],
+                                              first = 0,
+                                              last = str_locate(pathologyReport$onlyBiopsyReport[i],
+                                                                "Biopsy Result:\\s+")[2])
+  pathologyReport$onlyBiopsyReport[i] <- substring(pathologyReport$onlyBiopsyReport[i],
+                                                   first = str_locate(pathologyReport$onlyBiopsyReport[i],
+                                                                      "Biopsy Result:\\s+")[2]+1)
+
+  # choose only colorectal pathology report
+  if(grepl("Rectum|rectal|Colon|colitis|Rectosigmoid\\sjuction|rectosigmoid\\sjunctional\\sca|LST",
+           pathologyReport$onlyBiopsyReport[i],
+           ignore.case = T)){
+    pathologyReport$onlyColorectalReport[i] <- "YES"
+  }else{
+    pathologyReport$onlyColorectalReport[i] <- "No"
+  }
+}
+
+pathologyReport <- pathologyReport %>%
+  filter(onlyColorectalReport == "YES") %>%
+  select(NOTE_ID, PERSON_ID, NOTE_DATE, NOTE_TITLE, RESULT_TYPE, onlyBiopsyReport)
+
+# trim blank
+pathologyReport$RESULT_TYPE <- gsub("^\\s+", "", pathologyReport$RESULT_TYPE)
+pathologyReport$RESULT_TYPE <- gsub(":\\s+", "", pathologyReport$RESULT_TYPE)
+
+crcPtBioNote <- pathologyReport
+### Biomarker ####
+# MSI
+crcPtBioNote$MSI <- substr(crcPtBioNote$onlyBiopsyReport,
+                           (str_locate(crcPtBioNote$onlyBiopsyReport,
+                                       "(MSI)(.+)(yes|no)(\\s+)")[,2])+1,
+                           (str_locate(crcPtBioNote$onlyBiopsyReport,
+                                       "(MSI)(.+)(yes|no)(\\s+)(.+)")[,2])+3)
+
+crcPtBioNote$MSI <- gsub("(\n|\\s+\n|\r)(.+)", "", crcPtBioNote$MSI)
+crcPtBioNote$MSI <- gsub("MSI-H|MSI-high|MSI-High", "High", crcPtBioNote$MSI)
+crcPtBioNote$MSI <- gsub("MSI-L|MSI-low|MSI-Low", "Low", crcPtBioNote$MSI)
+crcPtBioNote$MSI <- gsub("MSS-high|MSS-High|MSS-low|MSS-Low|MSS", "Stable", crcPtBioNote$MSI)
+
+# K-ras
+crcPtBioNote$Kras <- substr(crcPtBioNote$onlyBiopsyReport,
+                            (str_locate(crcPtBioNote$onlyBiopsyReport,
+                                        "(Kras mutation is)(\\s+)")[,2]+1),
+                            (str_locate(crcPtBioNote$onlyBiopsyReport,
+                                        "(Kras mutation is)(.+)(detected)")[,2]))
+for(i in 1:nrow(crcPtBioNote)){
+  if(is.na(crcPtBioNote$Kras[i])){
+    crcPtBioNote$Kras[i] <- substr(crcPtBioNote$onlyBiopsyReport[i],
+                                   (str_locate(crcPtBioNote$onlyBiopsyReport[i],
+                                               "(\n)(.+)(KRAS,)(.+)(detected)")[,1]),
+                                   (str_locate(crcPtBioNote$onlyBiopsyReport[i],
+                                               "(\n)(.+)(KRAS,)(.+)(detected)")[,2]))}
+}
+for(i in 1:nrow(crcPtBioNote)){
+  if(is.na(crcPtBioNote$Kras[i])){
+    crcPtBioNote$Kras[i] <- NA
+  }else if(str_detect(crcPtBioNote$Kras[i],
+                      "^detected")){
+    crcPtBioNote$Kras[i] <- "detected"
+  }else if(str_detect(crcPtBioNote$Kras[i],
+                      "^not detected")){
+    crcPtBioNote$Kras[i] <- "not detected"
+  }else if(str_detect(crcPtBioNote$Kras[i],
+                      "(\n)(No)|(Genomic)(.+)(not)|(No clinically)")){
+    crcPtBioNote$Kras[i] <- "not detected"
+  }else{
+    crcPtBioNote$Kras[i] <- "detected"
+  }
+}
+
+# N-ras
+crcPtBioNote$Nras <- substr(crcPtBioNote$onlyBiopsyReport,
+                            (str_locate(crcPtBioNote$onlyBiopsyReport,
+                                        "(N-ras\\s)(.+)|(\nNras\\s)")[,1]),
+                            (str_locate(crcPtBioNote$onlyBiopsyReport,
+                                        "(N-ras\\s)(.+)|(\nNras mutation is)(.+)(detected)")[,2]))
+for(i in 1:nrow(crcPtBioNote)){
+  if(is.na(crcPtBioNote$Nras[i])){
+    crcPtBioNote$Nras[i] <- substr(crcPtBioNote$onlyBiopsyReport[i],
+                                   (str_locate(crcPtBioNote$onlyBiopsyReport[i],
+                                               "(\n)(.+)(NRAS,)(.+)(detected)")[,1]),
+                                   (str_locate(crcPtBioNote$onlyBiopsyReport[i],
+                                               "(\n)(.+)(NRAS,)(.+)(detected)")[,2]))}
+}
+for(i in 1:nrow(crcPtBioNote)){
+  if(is.na(crcPtBioNote$Nras[i])){
+    crcPtBioNote$Nras[i] <- NA
+  }else if(str_detect(crcPtBioNote$Nras[i],
+                      "(\nNras mutation)(.+)(is detected)")){
+    crcPtBioNote$Nras[i] <- "detected"
+  }else if(str_detect(crcPtBioNote$Nras[i],
+                      "(\nNras mutation)(.+)(not detected)")){
+    crcPtBioNote$Nras[i] <- "not detected"
+  }else if(str_detect(crcPtBioNote$Nras[i],
+                      "(N-ras 유전자)")){
+    crcPtBioNote$Nras[i] <- "not detected"
+  }else if(str_detect(crcPtBioNote$Nras[i],
+                      "(\n)(No)|(Genomic)(.+)(not)|(No clinically)")){
+    crcPtBioNote$Nras[i] <- "not detected"
+  }else{
+    crcPtBioNote$Nras[i] <- "detected"
+  }
+}
+
+# BRAF
+crcPtBioNote$BRAF <- substr(crcPtBioNote$onlyBiopsyReport,
+                            str_locate(crcPtBioNote$onlyBiopsyReport,
+                                       "(BRAF)(.+)(;|:)")[,2],
+                            str_locate(crcPtBioNote$onlyBiopsyReport,
+                                       "(BRAF)(.+)(;|:)(.+)(tive)")[,2])
+
+for(i in 1:nrow(crcPtBioNote)){
+  if(is.na(crcPtBioNote$BRAF[i])){
+    crcPtBioNote$BRAF[i] <- substr(crcPtBioNote$onlyBiopsyReport[i],
+                                   (str_locate(crcPtBioNote$onlyBiopsyReport[i],
+                                               "(\n)(.+)(BRAF)(.+)(detected)")[,1]),
+                                   (str_locate(crcPtBioNote$onlyBiopsyReport[i],
+                                               "(\n)(.+)(BRAF,)(.+)(detected)")[,2]))}
+}
+for(i in 1:nrow(crcPtBioNote)){
+  if(is.na(crcPtBioNote$BRAF[i])){
+    crcPtBioNote$BRAF[i] <- NA
+  }else if(str_detect(crcPtBioNote$BRAF[i],
+                      "(;\\s+negative|:\\s+Negative|:\\s+negative)")){
+    crcPtBioNote$BRAF[i] <- "not detected"
+  }else if(str_detect(crcPtBioNote$BRAF[i],
+                      "(; positive)")){
+    crcPtBioNote$BRAF[i] <- "detected"
+  }else if(str_detect(crcPtBioNote$BRAF[i],
+                      "(\n)(No)|(Genomic)(.+)(not)|(No clinically)")){
+    crcPtBioNote$BRAF[i] <- "not detected"
+  }else{
+    crcPtBioNote$BRAF[i] <- "detected"
+  }
+}
+
+crcPtBioNote <- crcPtBioNote %>% rename('SUBJECT_ID' = 'PERSON_ID')
+GeneMuataion <- crcPtBioNote[, c("SUBJECT_ID", "NOTE_DATE", "MSI", "Kras", "Nras", "BRAF")]
+
+# 데이터 테이블에서 "MSI", "Kras", "Nras", "BRAF" 열의 값이 모두 NA인 행을 삭제
+GeneMuataion <- GeneMuataion %>%
+  filter(!(is.na(MSI)) | !(is.na(Kras)) | !(is.na(Nras)) | !(is.na(BRAF)))
+count(GeneMuataion %>% distinct(SUBJECT_ID))
+# Gene 검사 395 사람 365
+
+Table2 <- merge(Table1, GeneMuataion, by = "SUBJECT_ID")
+Table2$NOTE <- ifelse((Table2$NOTE_DATE-Table2$COHORT_START_DATE) < 0, "before", "after")
+Table2 <- Table2 %>% filter(NOTE == "after")
+
+#### 중복있음 ####
+# MSI
+table(Table2$MSI)
+sum(is.na(Table2$MSI))
+length(Table2$MSI)
+# High  Low  Stable  NA   total
+# 4     3    163     32   202
+
+# Kras
+table(Table2$Kras)
+sum(is.na(Table2$Kras))
+length(Table2$Kras)
+# detected not_detected NA total
+# 80       77           45 202
+
+# Nras
+table(Table2$Nras)
+sum(is.na(Table2$Nras))
+length(Table2$Nras)
+# detected not_detected NA total
+# 3        138          61 202
+
+# BRAF
+table(Table2$BRAF)
+sum(is.na(Table2$BRAF))
+length(Table2$BRAF)
+# detected not_detected NA  total
+# 2        44           156 202
+
+########################
+#### Table 3 result ####
+########################
+
+# Dead
+sql_dead <- "SELECT person_id, death_date, cause_concept_id, cause_source_value
+  FROM CDMPv533_ABMI.dbo.death
+  WHERE person_id in (@Cohort_ID)"
+sql_dead <- SqlRender::render(sql_dead, Cohort_ID = CohortID)
+death <- as.data.frame(DatabaseConnector::querySql(connection, sql_dead))
+# 132
+
+
+# Leukopenia 진단받은 사람들 중 COHORT 와 겹치는 사람 추출
+sql_leukopenia <- "SELECT * FROM cohortDb.dbo.seol_leukopenia WHERE SUBJECT_ID in (@Cohort_ID)"
+sql_leukopenia <- SqlRender::render(sql_leukopenia, Cohort_ID = CohortID)
+leukopenia <- as.data.frame(DatabaseConnector::querySql(connection, sql_leukopenia))
+setnames(leukopenia,
+         old = c("COHORT_START_DATE", "COHORT_END_DATE"),
+         new = c("leukopenia_START_DATE", "leukopenia_END_DATE"))
+# ILD 16
+
+T_leukopenia <- merge(Table1, leukopenia[, c("SUBJECT_ID", "leukopenia_START_DATE", "leukopenia_END_DATE")], by = "SUBJECT_ID")
+Table2$ILD <- ifelse(T_leucopenia$COHORT_START_DATE < T_leucopenia$leukopenia_START_DATE, "after", "before")
+Table2 <- Table2 %>% filter(ILD == "after")
+Table2 <- Table2 %>% select(SUBJECT_ID, GENDER_SOURCE_VALUE, age, Tx)
+# Chemotherapy 이후 ILD 발생한 사람 14
+
+
+# Neutropeina
+# Thrombocytopenia
+# Diarrhea

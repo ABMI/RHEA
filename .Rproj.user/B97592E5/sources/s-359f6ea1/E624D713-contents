@@ -1,0 +1,261 @@
+#' @param connectionDetails
+#' @param oracleTempSchema
+#' @param cdmDatabaseSchema
+#' @param cohortDatabaseSchema
+#' @param oncologyDatabaseSchema
+#' @param vocaDatabaseSchema
+#' @param cohortTable
+#' @param episodeTable
+#' @param outputFolder
+#' @param outputFileTitle
+#' @param targetCohortIds
+#' @param episodeCohortCreate
+#' @param createEpisodeCohortTable
+#' @param fromYear
+#' @param toYear
+#' @param identicalSeriesCriteria
+#' @param maximumCycleNumber
+#' @param minSubject
+#' @param collapseDates
+#' @param conditionCohortIds
+#' @param treatmentLine
+#' @param minimumRegimenChange
+#' @param surgeryCohortIds
+#' @param eventCohortIds
+#' @param treatmentEffectDates
+#' @keywords
+#' @return CancerTxPatterns plots
+#' @examples
+#' @import dplyr
+#' @import flexdashboard
+
+
+#' @export Txpathway
+Txpathway <- function(connectionDetails,
+                      oracleTempSchema,
+                      cdmDatabaseSchema,
+                      cohortDatabaseSchema,
+                      oncologyDatabaseSchema,
+                      vocaDatabaseSchema,
+                      cohortTable,
+                      Graph_cohort,
+                      episodeTable,
+                      outputFolder,
+                      identicalSeriesCriteria = 60,
+                      maximumCycleNumber = 18,
+                      minSubject = 0,
+                      collapseDates = 0,
+                      conditionCohortIds = atlasID,
+                      treatmentLine = 3,
+                      minimumRegimenChange = 1){
+
+  if(!is.null(outputFolder)){
+    if (!file.exists(outputFolder)){
+      dir.create(outputFolder, recursive = TRUE)}}
+
+  connection <- DatabaseConnector::connect(connectionDetails)
+
+  sql_G_cohort <- SqlRender::loadRenderTranslateSql(sqlFilename= "CreateCohortTable.sql",
+                                                    packageName = "RHEA",
+                                                    dbms = attr(connection,"dbms"),
+                                                    oracleTempSchema = oracleTempSchema,
+                                                    cohort_database_schema = cohortDatabaseSchema,
+                                                    cohort_table = Graph_cohort)
+  DatabaseConnector::executeSql(connection, sql_G_cohort, progressBar = TRUE, reportOverallTime = TRUE)
+
+  cohortDescript <- cohortDescription()
+  targetCohortIds <- cohortDescript$cohortDefinitionId
+
+  for(i in 1:length(targetCohortIds)){
+    conceptIdSet <- cohortDescript$conceptId[i]
+    targetCohortId <- cohortDescript$cohortDefinitionId[i]
+    createEpisodeCohort(connectionDetails,
+                        oracleTempSchema,
+                        cdmDatabaseSchema,
+                        cohortDatabaseSchema,
+                        oncologyDatabaseSchema,
+                        vocaDatabaseSchema,
+                        Graph_cohort,
+                        episodeTable,
+                        surgeryids,
+                        conceptIdSet = conceptIdSet,
+                        includeConceptIdSetDescendant = F,
+                        collapseGapSize = 0,
+                        targetCohortId = targetCohortId,
+                        cycle = TRUE)}
+
+  standardCycle <- cohortCycle(connectionDetails,
+                               cohortDatabaseSchema,
+                               cohortTable,
+                               Graph_cohort,
+                               targetCohortIds,
+                               identicalSeriesCriteria = 60,
+                               conditionCohortIds = atlasID)
+
+
+  #########################
+  ########## TNM ##########
+  #########################
+
+  sql_TNM <- "SELECT a.subject_id, ca.measurement_date, ca.measurement_source_value, ca.value_source_value
+              FROM @cohort_database_schema.@cohort_table a, @cdm_database_schema.cancer_measurement ca
+              WHERE a.subject_id = ca.person_id;"
+  sql_TNM <- SqlRender::render(sql_TNM,
+                               cohort_database_schema = cohortDatabaseSchema,
+                               cdm_database_schema = cdmDatabaseSchema,
+                               cohort_table = cohortTable)
+  TNMrecords <- DatabaseConnector::querySql(connection, sql_TNM)
+
+  TNMrecords <- TNMrecords %>%
+    distinct(SUBJECT_ID,
+             MEASUREMENT_DATE,
+             MEASUREMENT_SOURCE_VALUE,
+             VALUE_SOURCE_VALUE) %>%
+    filter(str_detect(VALUE_SOURCE_VALUE, '^(C18|C19|C20)')) %>%
+    arrange(SUBJECT_ID, MEASUREMENT_DATE, desc(MEASUREMENT_SOURCE_VALUE))
+  # 같은날 유사 부위 2개 진단일 경우 grade가 더 높은 것 기준으로 중복제거
+  TNMrecords <- TNMrecords %>%
+    distinct(SUBJECT_ID, MEASUREMENT_DATE, .keep_all = TRUE)
+
+  # stage1
+  TNMstage1 <- TNMrecords %>%
+    filter(str_detect(MEASUREMENT_SOURCE_VALUE, 'T1|T2') &
+             !str_detect(MEASUREMENT_SOURCE_VALUE, 'N1|N2|N3|M1'))
+  TNMstage1ids <- TNMstage1$SUBJECT_ID
+  STAGE1 <- standardCycle %>% filter(subjectId %in% TNMstage1ids)
+
+  # stage2
+  TNMstage2 <- TNMrecords %>%
+    filter(str_detect(MEASUREMENT_SOURCE_VALUE, 'T3|T4') &
+             !str_detect(MEASUREMENT_SOURCE_VALUE, 'N1|N2|N3|M1'))
+  TNMstage2ids <- TNMstage2$SUBJECT_ID
+  STAGE2 <- standardCycle %>% filter(subjectId %in% TNMstage2ids)
+
+  # stage3
+  TNMstage3 <- TNMrecords %>%
+    filter(str_detect(MEASUREMENT_SOURCE_VALUE, 'N1|N2|N3') &
+             !str_detect(MEASUREMENT_SOURCE_VALUE, 'N0|M1'))
+  TNMstage3ids <- TNMstage3$SUBJECT_ID
+  STAGE3 <- standardCycle %>% filter(subjectId %in% TNMstage3ids)
+
+  # stage4
+  TNMstage4 <- TNMrecords %>%
+    filter(str_detect(MEASUREMENT_SOURCE_VALUE, 'M1') &
+             !str_detect(MEASUREMENT_SOURCE_VALUE, 'M0'))
+  TNMstage4ids <- TNMstage4$SUBJECT_ID
+  STAGE4 <- standardCycle %>% filter(subjectId %in% TNMstage4ids)
+
+  STAGE_df <- list(STAGE1, STAGE2, STAGE3, STAGE4)
+
+  # stageCohort <- TNMrecords %>% mutate(stage = ifelse(SUBJECT_ID %in% TNMstage1ids, 1,
+  #                                                     ifelse(SUBJECT_ID %in% TNMstage2ids, 2,
+  #                                                            ifelse(SUBJECT_ID %in% TNMstage3ids, 3,
+  #                                                                   ifelse(SUBJECT_ID %in% TNMstage4ids, 4, 0)
+  #                                                                   ))))
+  # write.csv(stageCohort, file = paste0(outputFolder, "/stageCohort.csv"))
+
+  for (i in 1:4) {
+    current_data <- STAGE_df[[i]]
+
+    cohortDescript <- cohortDescription()
+    targetCohortIds <- cohortDescript$cohortDefinitionId
+
+    ParallelLogger::logInfo("Drawing distribution of the regimen iteration heatmap...")
+    heatmapPlotData <- heatmapData(connectionDetails,
+                                   cohortDatabaseSchema,
+                                   current_data,
+                                   targetCohortIds)
+
+    heatmap <- treatmentIterationHeatmap(heatmapPlotData,
+                                         maximumCycleNumber = 18,
+                                         minSubject = 1)
+
+    stageName <- paste0(outputFolder, "/stage", i)
+    if(!is.null(stageName)){
+      if (!file.exists(stageName)){
+        dir.create(stageName, recursive = TRUE)}}
+
+
+    if(!is.null(stageName)){
+      # Heatmap Data
+      HMdata_fileName <- paste0('RHEA_stage', i, '_','treatmentIterationHeatmap.csv')
+      write.csv(heatmapPlotData, file.path(stageName, HMdata_fileName), row.names = F)
+
+      # Heatmap Plot
+      HMplot_fileName <- paste0('RHEA_stage', i, '_','treatmentIterationHeatmap.html')
+      htmlwidgets::saveWidget(heatmap, file.path(stageName, HMplot_fileName))
+    }
+
+    ParallelLogger::logInfo("Drawing a flow chart of the treatment pathway...")
+    treatmentPathway <- treatmentPathway(connectionDetails,
+                                         cohortDatabaseSchema,
+                                         current_data,
+                                         stageName,
+                                         minimumRegimenChange = 1,
+                                         treatmentLine = 3,
+                                         collapseDates = 0,
+                                         minSubject = 0,
+                                         i)
+  }
+
+  #########################
+  ##### Gene Mutation #####
+  #########################
+  folderName <- paste0(outputFolder, "/GeneMutation")
+  if(!is.null(folderName)){if (!file.exists(folderName)){dir.create(folderName, recursive = TRUE)}}
+
+  # MSI
+  MSI_df <- BiopsyResult %>% filter(!is.na(MSI)) %>% select(SUBJECT_ID, MSI)
+  MSI_H_ids <- MSI_df %>% filter(MSI == "High") %>% pull(SUBJECT_ID)
+  MSI_L_ids <- MSI_df %>% filter(MSI == "Low") %>% pull(SUBJECT_ID)
+  MSI_S_ids <- MSI_df %>% filter(MSI == "Stable") %>% pull(SUBJECT_ID)
+  MSI_H <- standardCycle %>% filter(subjectId %in% MSI_H_ids)
+  MSI_L <- standardCycle %>% filter(subjectId %in% MSI_L_ids)
+  MSI_S <- standardCycle %>% filter(subjectId %in% MSI_S_ids)
+
+  # KRAS
+  KRAS_df <- BiopsyResult %>% filter(!is.na(Kras)) %>% select(SUBJECT_ID, Kras)
+  KRAS_M_ids <- KRAS_df %>% filter(Kras == "Mutant type") %>% pull(SUBJECT_ID)
+  KRAS_W_ids <- KRAS_df %>% filter(Kras == "Wild type") %>% pull(SUBJECT_ID)
+  KRAS_M <- standardCycle %>% filter(subjectId %in% KRAS_M_ids)
+  KRAS_W <- standardCycle %>% filter(subjectId %in% KRAS_W_ids)
+
+  # NRAS
+  NRAS_df <- BiopsyResult %>% filter(!is.na(Nras)) %>% select(SUBJECT_ID, Nras)
+  NRAS_M_ids <- NRAS_df %>% filter(Nras == "Mutant type") %>% pull(SUBJECT_ID)
+  NRAS_W_ids <- NRAS_df %>% filter(Nras == "Wild type") %>% pull(SUBJECT_ID)
+  NRAS_M <- standardCycle %>% filter(subjectId %in% NRAS_M_ids)
+  NRAS_W <- standardCycle %>% filter(subjectId %in% NRAS_W_ids)
+
+  # BRAF
+  BRAF_df <- BiopsyResult %>% filter(!is.na(BRAF)) %>% select(SUBJECT_ID, BRAF)
+  BRAF_P_ids <- BRAF_df %>% filter(BRAF == "Positive") %>% pull(SUBJECT_ID)
+  BRAF_N_ids <- BRAF_df %>% filter(BRAF == "Negative") %>% pull(SUBJECT_ID)
+  BRAF_P <- standardCycle %>% filter(subjectId %in% BRAF_P_ids)
+  BRAF_N <- standardCycle %>% filter(subjectId %in% BRAF_N_ids)
+
+  Gene_list <- list(MSI_H, MSI_L, MSI_S, KRAS_M, KRAS_W, NRAS_M, NRAS_W, BRAF_P, BRAF_N)
+  Gene_label_list <- c("MSI_H", "MSI_L", "MSI_S", "KRAS_M", "KRAS_W", "NRAS_M", "NRAS_W", "BRAF_P", "BRAF_N")
+
+  for(z in 1:length(Gene_label_list)){
+    current_data <- Gene_list[[z]]
+    i <- Gene_label_list[z]
+
+    cohortDescript <- cohortDescription()
+    targetCohortIds <- cohortDescript$cohortDefinitionId
+
+    ParallelLogger::logInfo("Drawing a flow chart of the treatment pathway...")
+    treatmentPathway <- treatmentPathway(connectionDetails,
+                                         cohortDatabaseSchema,
+                                         current_data,
+                                         folderName,
+                                         cohortDescript,
+                                         minimumRegimenChange = 1,
+                                         treatmentLine = 3,
+                                         collapseDates = 0,
+                                         minSubject = 0,
+                                         i)
+  }
+
+  DatabaseConnector::disconnect(connection)
+}

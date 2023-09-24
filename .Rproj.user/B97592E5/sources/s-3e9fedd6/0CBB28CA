@@ -1,0 +1,26 @@
+{
+    "id": "0CBB28CA",
+    "path": "~/code/RHEA/inst/Dashboard/app.R",
+    "project_path": "inst/Dashboard/app.R",
+    "type": "r_source",
+    "hash": "0",
+    "contents": "",
+    "dirty": false,
+    "created": 1690795009271.0,
+    "source_on_save": false,
+    "relative_order": 5,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "1807,48",
+        "scrollLine": "0"
+    },
+    "folds": "402|24|414|4|\n415|24|427|4|\n431|25|443|4|\n444|25|456|4|\n459|29|711|4|\n714|30|739|4|\n742|28|820|4|\n821|29|889|4|\n892|29|940|4|\n941|30|992|4|\n995|31|1026|4|\n1027|31|1049|4|\n1052|26|1454|4|\n1468|37|1521|4|\n1523|39|1563|4|\n1564|34|1604|4|\n1607|31|1622|4|\n1625|37|1657|4|\n1663|33|1666|6|\n1667|33|1670|4|\n1671|33|1674|4|\n1679|31|1695|4|\n1844|32|1863|6|\n1864|33|1883|4|\n1884|33|1903|4|\n1904|33|1923|4|\n1928|39|2076|4|\n2084|37|2100|4|\n",
+    "lastKnownWriteTime": 1693801981,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1693801981958,
+    "read_only": false,
+    "read_only_alternatives": []
+}

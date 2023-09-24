@@ -1,0 +1,120 @@
+# Copyright 2020 Observational Health Data Sciences and Informatics
+#
+# This file is part of CancerTxPathway
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+#' Episode / Episode_event table generation for chemotherapy
+#' @param connectionDetails
+#' @param oracleTempSchema
+#' @param cdmDatabaseSchema
+#' @param vocaDatabaseSchema
+#' @param cohortDatabaseSchema
+#' @param oncologyDatabaseSchema
+#' @param cohortTable
+#' @param episodeTable
+#' @param episodeEventTable
+#' @param includeConceptIdSetDescendant
+#' @param maxCores
+#' @param createCohortTable
+#' @param createEpisodeTable
+#' @param generateTargetCohort
+#' @return Target Cohort, Episode, Episode Event
+#' @examples
+
+#' @export executeExtraction
+executeExtraction <- function(connectionDetails,
+                              oracleTempSchema,
+                              cdmDatabaseSchema,
+                              vocaDatabaseSchema = cdmDatabaseSchema,
+                              cohortDatabaseSchema,
+                              oncologyDatabaseSchema,
+                              cohortTable,
+                              episodeTable,
+                              episodeEventTable,
+                              includeConceptIdSetDescendant = TRUE,
+                              maxCores,
+                              createCohortTable,
+                              createEpisodeAndEventTable,
+                              generateTargetCohort
+){
+
+  # DB connection_1
+  connection <- DatabaseConnector::connect(connectionDetails = connectionDetails)
+  targetCohortId <- atlasID
+
+  ###################
+  ## Target Cohort ##
+  ###################
+
+  # Generate target cohort
+  if(createCohortTable){
+    loadATLAScohort(connection,
+                    cdmDatabaseSchema,
+                    cohortDatabaseSchema,
+                    cohortTable)
+  }
+
+  ###################
+  ## Episode Table ##
+  ###################
+
+  # Create Episode table, Episode_event
+  if(createEpisodeAndEventTable){
+    createEpisodeTables(connection,
+                        oracleTempSchema,
+                        oncologyDatabaseSchema,
+                        episodeTable,
+                        episodeEventTable)
+  }
+
+  ########################
+  ## Episode generation ##
+  ########################
+
+  # Load regimen Concept_Id for Target Cohort (Cohort_Definition_Id)
+  pathToCsv <- system.file("csv", "Info_TargetRegimen.csv", package = "RHEA")
+  regimenInfo <- read.csv(pathToCsv)
+
+  # Extract Episode / Episode_event table
+
+  # Load target Cohort_Definition_Id, List for Regimen_Concept_Id
+  targetRegimenConceptIds <- strsplit(as.character(regimenInfo$regimenConceptIds),';')[[1]]
+
+  # JSON parameters to List form
+  parameters <- parameterSetting(targetRegimenConceptIds)
+  parameters <- compact(parameters)
+
+  # Generate Episode / Episode_event table
+  episodes <- generateEpisode(parameters,
+                              connection,
+                              connectionDetails,
+                              cohortTable,
+                              cdmDatabaseSchema,
+                              cohortDatabaseSchema,
+                              atlasID,
+                              maxCores)
+
+  episodes <- chemotherapyRecords
+  # Insert Episode / Episode_event table to DB
+  insertEpisode(connection,
+                oncologyDatabaseSchema,
+                episodeTable,
+                episodeEventTable,
+                episodes)
+
+  # DB disconnection_3
+  DatabaseConnector::disconnect(connection)
+
+
+}

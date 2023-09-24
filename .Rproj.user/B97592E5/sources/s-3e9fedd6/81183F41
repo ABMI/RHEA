@@ -1,0 +1,27 @@
+{
+    "id": "81183F41",
+    "path": "~/code/RHEA/validation/FOLFOC_Bev_vs_FOLFIRI_Bev.R",
+    "project_path": "validation/FOLFOC_Bev_vs_FOLFIRI_Bev.R",
+    "type": "r_source",
+    "hash": "0",
+    "contents": "",
+    "dirty": false,
+    "created": 1689818260286.0,
+    "source_on_save": false,
+    "relative_order": 4,
+    "properties": {
+        "tempName": "Untitled1",
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "36,44",
+        "scrollLine": "0"
+    },
+    "folds": "226|35|254|0|\n284|31|291|0|\n292|31|307|0|\n315|31|322|0|\n323|31|341|0|\n350|31|357|0|\n358|31|373|0|\n",
+    "lastKnownWriteTime": 1693792732,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1693792732668,
+    "read_only": false,
+    "read_only_alternatives": []
+}

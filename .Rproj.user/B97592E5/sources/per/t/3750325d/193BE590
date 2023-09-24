@@ -1,0 +1,26 @@
+{
+    "id": "193BE590",
+    "path": "~/code/RHEA/GettingStarted.R",
+    "project_path": "GettingStarted.R",
+    "type": "r_source",
+    "hash": "1278764182",
+    "contents": "",
+    "dirty": true,
+    "created": 1685688786157.0,
+    "source_on_save": false,
+    "relative_order": 1,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "90,42",
+        "scrollLine": "40"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1694071574,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1694089010414,
+    "read_only": false,
+    "read_only_alternatives": []
+}

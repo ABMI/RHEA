@@ -1,0 +1,115 @@
+#' @param connectionDetails
+#' @param oracleTempSchema
+#' @param cdmDatabaseSchema
+#' @param cohortDatabaseSchema
+#' @param oncologyDatabaseSchema
+#' @param vocaDatabaseSchema
+#' @param cohortTable
+#' @param episodeTable
+#' @param outputFolder
+#' @param outputFileTitle
+#' @param targetCohortIds
+#' @param episodeCohortCreate
+#' @param createEpisodeCohortTable
+#' @param fromYear
+#' @param toYear
+#' @param identicalSeriesCriteria
+#' @param maximumCycleNumber
+#' @param minSubject
+#' @param collapseDates
+#' @param conditionCohortIds
+#' @param treatmentLine
+#' @param minimumRegimenChange
+#' @param surgeryCohortIds
+#' @param eventCohortIds
+#' @param treatmentEffectDates
+#' @keywords
+#' @return CancerTxPatterns plots
+#' @examples
+#' @import dplyr
+#' @import flexdashboard
+
+
+#' @export Txpathway
+Txpathway <- function(connectionDetails,
+                      oracleTempSchema,
+                      cdmDatabaseSchema,
+                      cohortDatabaseSchema,
+                      oncologyDatabaseSchema,
+                      vocaDatabaseSchema,
+                      cohortTable,
+                      Graph_cohort,
+                      episodeTable,
+                      outputFolder,
+                      identicalSeriesCriteria = 60,
+                      maximumCycleNumber = 18,
+                      minSubject = 0,
+                      collapseDates = 0,
+                      conditionCohortIds = atlasID,
+                      treatmentLine = 3,
+                      minimumRegimenChange = 1){
+
+  if(!is.null(outputFolder)){
+    if (!file.exists(outputFolder)){
+      dir.create(outputFolder, recursive = TRUE)}}
+
+  connection <- DatabaseConnector::connect(connectionDetails)
+
+  sql_G_cohort <- SqlRender::loadRenderTranslateSql(sqlFilename= "CreateCohortTable.sql",
+                                                    packageName = "RHEA",
+                                                    dbms = attr(connection,"dbms"),
+                                                    oracleTempSchema = oracleTempSchema,
+                                                    cohort_database_schema = cohortDatabaseSchema,
+                                                    cohort_table = Graph_cohort)
+  DatabaseConnector::executeSql(connection, sql_G_cohort, progressBar = TRUE, reportOverallTime = TRUE)
+
+  cohortDescription <- cohortDescription()
+  targetCohortIds <- cohortDescription$cohortDefinitionId
+
+  for(i in 1:length(targetCohortIds)){
+    conceptIdSet <- cohortDescription$conceptId[i]
+    targetCohortId <- cohortDescription$cohortDefinitionId[i]
+    createEpisodeCohort(connectionDetails,
+                        oracleTempSchema,
+                        cdmDatabaseSchema,
+                        cohortDatabaseSchema,
+                        oncologyDatabaseSchema,
+                        vocaDatabaseSchema,
+                        Graph_cohort,
+                        episodeTable,
+                        conceptIdSet = conceptIdSet,
+                        includeConceptIdSetDescendant = F,
+                        collapseGapSize = 0,
+                        targetCohortId = targetCohortId,
+                        cycle = TRUE)}
+
+
+  ParallelLogger::logInfo("Drawing distribution of the regimen iteration heatmap...")
+  heatmapPlotData <- heatmapData(connectionDetails,
+                                 cohortDatabaseSchema,
+                                 cohortTable,
+                                 Graph_cohort,
+                                 targetCohortIds,
+                                 outputFolder,
+                                 identicalSeriesCriteria = 60,
+                                 conditionCohortIds = atlasID)
+
+  heatmap <- treatmentIterationHeatmap(heatmapPlotData,
+                                       maximumCycleNumber = 18,
+                                       minSubject = 1)
+
+  ParallelLogger::logInfo("Drawing a flow chart of the treatment pathway...")
+  targetCohortIds <- cohortDescription$cohortDefinitionId
+  treatmentPathway <- treatmentPathway(connectionDetails,
+                                       cohortDatabaseSchema,
+                                       Graph_cohort,
+                                       outputFolder,
+                                       conditionCohortIds = atlasID,
+                                       targetCohortIds,
+                                       minimumRegimenChange,
+                                       treatmentLine,
+                                       collapseDates,
+                                       minSubject)
+
+  DatabaseConnector::disconnect(connection)
+}

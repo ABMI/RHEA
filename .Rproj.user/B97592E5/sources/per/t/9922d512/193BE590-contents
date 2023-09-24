@@ -1,0 +1,151 @@
+# RHEA: Real-world observational Health data Exploration Application
+# The framework consists of two main parts.
+# 1) Process to prepare data
+# 2) process to represent it as an r shiny application.
+
+
+###############
+### LIBRARY ###
+###############
+# library for data preparation
+library(DatabaseConnector)
+library(rjson)
+library(purrr)
+library(SqlRender)
+library(data.table)
+library(highcharter)
+library(listviewer)
+library(tidyr)
+library(cli)
+library(collapsibleTree)
+library(DT)
+library(fansi)
+library(xfun)
+library(tidyverse)
+
+# library for dashboard
+library(lubridate)
+library(ggplot2)
+library(plyr)
+library(RSQLite)
+library(plotly)
+library(quantmod)
+library(data.table)
+library(shiny)
+library(shinyalert)
+library(shinycssloaders)
+library(shinydashboard)
+library(shinythemes)
+library(shinyWidgets)
+library(summaryBox)
+library(DT)
+library(ggrepel)
+library(gridExtra)
+library(stringr)
+library(dplyr)
+library(xml2)
+library(htmlwidgets)
+
+
+################
+## DB connect ##
+################
+# Details for connectiong to the server
+connectionDetails <- DatabaseConnector::createConnectionDetails(dbms= "sql server",
+                                                                server='128.1.99.58',
+                                                                user='seol',
+                                                                password='Asdf1004!!',
+                                                                port='1433',
+                                                                pathToDriver = './')
+oracleTempSchema <- NULL
+cdmDatabaseSchema <- "CDMPv533_ABMI.dbo"
+cohortDatabaseSchema <- "cohortDb.dbo"
+vocaDatabaseSchema <- cdmDatabaseSchema
+oncologyDatabaseSchema <- cdmDatabaseSchema
+
+#########################
+## 1. data preparation ##
+#########################
+# 1) OMOP-CDM tables - COHORT, EPISODE, EPISODE_EVENT
+# - The cohorts in this package are designed to work with Atlas.
+atlasID <- 2087 # ATLAS Cohort Definition ID
+cohortTable <- "seol_REHA_temp"
+episodeTable <- "episode_seol_RHEA_temp"
+episodeEventTable <- "episode_event_seol_RHEA_temp"
+
+# COHORT
+createCohortTable <- T # Create cohort table for your cohort table
+
+# EPISODE, EPISODE_EVENT
+createEpisodeAndEventTable <- T # warning: existing table might be erased
+
+
+maxCores <- 1
+
+executeExtraction(connectionDetails,
+                  oracleTempSchema = NULL,
+                  cdmDatabaseSchema,
+                  cohortDatabaseSchema,
+                  vocaDatabaseSchema = cdmDatabaseSchema,
+                  oncologyDatabaseSchema = cdmDatabaseSchema,
+                  createCohortTable,
+                  createEpisodeAndEventTable,
+                  createTargetCohort,
+                  episodeTable,
+                  episodeEventTable,
+                  cohortTable,
+                  maxCores)
+
+
+
+# 2) Treatment pathway
+outputFolder <- '/home/seol/data/RHEA'
+outputFileTitle <- 'RHEA'
+episodeCohortCreate <- FALSE # Create cohort for treatment pathway plot
+createEpisodeCohortTable <- FALSE
+minSubject <- 0 # under 0 patients are removed from plot
+collapseDates <- 0
+conditionCohortIds <- 1 # restrict target patients with certain condition_occurrence
+treatmentLine <- 3 # Treatment line number for visualize in graph
+minimumRegimenChange <- 0 # Target patients for at least 1 regimen change
+
+# Draw and save a flow chart of the treatment pathway
+txpathway()
+
+
+##################
+## 2. Dashboard ##
+##################
+
+# DB connection_5
+connection <- DatabaseConnector::connect(connectionDetails = connectionDetails)
+
+# Load Cohort table
+Cohort <- loadCohortTable()
+
+# Load Episode table
+Episode <- loadEpisodTable()
+
+# Load note report
+BiopsyResult <- loadReportTable()
+
+# TNM stage code
+TNMcode <- read.csv("./inst/csv/TNMcode.csv")
+
+# TreatmentPathway figure
+# txPathwayflow <- "http://dr7rg.abmi.kr/files/code/RHEA/treatmentPathway.html"
+RegimenInfo <- loadRegimenlist()
+# txpathway <- read_html(x="./treatmentPathway.html")
+
+# Calculation
+totalVisitTable <- visitCountDiag()
+Ave_obserperiod <- F_obserperiod(totalVisitTable)
+Ave_visit <- F_visit()
+Ave_EmerVisit <- F_EmerVisit()
+Ave_HosVisit <- F_HOSvisit()
+Ave_HOSperiod <- F_HOSperiod()
+
+Antibiotics <- read.csv("./inst/csv/AntibioticsConcepts.csv")
+
+# 3. Run APP
+runShinyApp()

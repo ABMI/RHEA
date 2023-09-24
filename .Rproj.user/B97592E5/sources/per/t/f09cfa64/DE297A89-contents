@@ -1,0 +1,141 @@
+
+# load the cohort table 1)FOLFOX 2)FOLFOX+Bev 3)FOLFIRI 4) FOLFIRI+Bev
+sql_FOLFOX <- "SELECT * FROM [cohortDb].[dbo].[seol_FOLFOX]"
+sql_FOLFOX_Bev <- "SELECT * FROM [cohortDb].[dbo].[seol_FOLFOX_Bev]"
+sql_FOLFIRI <- "SELECT * FROM [cohortDb].[dbo].[seol_FOLFIRI]"
+sql_FOLFIRI_Bev <- "SELECT * FROM [cohortDb].[dbo].[seol_FOLFIRI_Bev]"
+
+FOLFOX <- as.data.frame(DatabaseConnector::querySql(connection, sql_FOLFOX))
+FOLFOX_Bev <- as.data.frame(DatabaseConnector::querySql(connection, sql_FOLFOX_Bev))
+FOLFIRI <- as.data.frame(DatabaseConnector::querySql(connection, sql_FOLFIRI))
+FOLFIRI_Bev <- as.data.frame(DatabaseConnector::querySql(connection, sql_FOLFIRI_Bev))
+
+# Tag Tx
+FOLFOX$Tx <- "FOLFOX" #1567
+FOLFOX_Bev$Tx <- "FOLFOX_Bev" #386
+FOLFIRI$Tx <- "FOLFIRI" #608
+FOLFIRI_Bev$Tx <- "FOLFIRI_Bev" #225
+
+ChemoTx <- rbind(FOLFOX, FOLFOX_Bev, FOLFIRI, FOLFIRI_Bev) #2786
+
+# 같은기간 내 여러 ChemoTx 받은 환자 삭제 (어떤 치료를 먼저 받았는지 알 수 없음)
+ChemoTx <- ChemoTx %>%
+  group_by(SUBJECT_ID) %>%
+  filter(n() == 1) %>%
+  ungroup() #1535
+
+######################################
+#### Table 1 Chemotherapy regimen ####
+######################################
+table(ChemoTx$Tx)
+# FOLFOX 1069
+# FOLFOX_Bev 200
+# FOLFIRI 200
+# FOLFIRI_Bev 66
+# total 1535
+
+CohortID <- as.vector(ChemoTx$SUBJECT_ID)
+CohortID <- paste(CohortID, collapse = ", ")
+
+sql_cohortInfo <- "SELECT person_id, year_of_birth, gender_source_value
+  FROM CDMPv533_ABMI.dbo.person
+  WHERE person_id in (@Cohort_ID)"
+
+sql_cohortInfo <- SqlRender::render(sql_cohortInfo,
+                                    Cohort_ID = CohortID)
+
+Info <- as.data.frame(DatabaseConnector::querySql(connection,
+                                                  sql_cohortInfo))
+
+Table1 <- merge(ChemoTx, Info, by.x = "SUBJECT_ID", by.y = "PERSON_ID")
+Table1$age <- year(Table1$COHORT_START_DATE) - Table1$YEAR_OF_BIRTH
+
+#############################
+#### Table 1 Gender, Age ####
+#############################
+table(Table1$GENDER_SOURCE_VALUE)
+# F 602
+# M 933
+
+median(Table1$age)
+min(Table1$age)
+max(Table1$age)
+# median age 60
+# range 19 - 86
+
+
+#####################
+#### Table 2 ILD ####
+#####################
+# ILD 진단받은 사람들 중 COHORT 와 겹치는 사람 추출
+sql_ILD <- "SELECT * FROM cohortDb.dbo.seol_ILD WHERE SUBJECT_ID in (@Cohort_ID)"
+sql_ILD <- SqlRender::render(sql_ILD, Cohort_ID = CohortID)
+ILD <- as.data.frame(DatabaseConnector::querySql(connection, sql_ILD))
+setnames(ILD,
+         old = c("COHORT_START_DATE", "COHORT_END_DATE"),
+         new = c("ILD_START_DATE", "ILD_END_DATE"))
+# ILD 16
+
+Table2 <- merge(Table1, ILD[, c("SUBJECT_ID", "ILD_START_DATE", "ILD_END_DATE")], by = "SUBJECT_ID")
+Table2$ILD <- ifelse(Table2$COHORT_START_DATE < Table2$ILD_START_DATE, "after ILD", "before ILD")
+Table2 <- Table2 %>% filter(ILD == "after ILD")
+Table2 <- Table2 %>% select(SUBJECT_ID, GENDER_SOURCE_VALUE, age, Tx)
+# Chemotherapy 이후 ILD 발생한 사람 14
+
+
+
+##########################################
+#### Table 3 ChemoTx Cycle and result ####
+##########################################
+finalCohortID <- as.vector(Table2$SUBJECT_ID)
+finalCohortID <- paste(finalCohortID, collapse = ", ")
+
+sql_episodes <- "SELECT a.PERSON_ID, a.EPISODE_CONCEPT_ID, a.EPISODE_START_DATETIME, a.EPISODE_END_DATETIME, a.EPISODE_NUMBER, a.EPISODE_SOURCE_CONCEPT_ID, b.concept_name
+  FROM CDMPv533_ABMI.dbo.episode_seol_RHEA a
+  left join CDMPv533_ABMI.dbo.concept b on b.concept_id = a.EPISODE_SOURCE_CONCEPT_ID
+  WHERE person_id in (@Cohort_ID)"
+sql_episodes <- SqlRender::render(sql_episodes, Cohort_ID = finalCohortID)
+cohort_episodes <- as.data.frame(DatabaseConnector::querySql(connection, sql_episodes))
+
+Table3 <- merge(Table1[, c("SUBJECT_ID", "COHORT_START_DATE", "Tx")],
+                cohort_episodes,
+                by.x = "SUBJECT_ID",
+                by.y = "PERSON_ID")
+Table3$Chemo <- ifelse(Table3$COHORT_START_DATE < Table3$EPISODE_START_DATETIME, "after", "before")
+Table3 <- Table3 %>%
+  filter(Chemo == "after") %>%
+  arrange(SUBJECT_ID, COHORT_START_DATE, Tx, EPISODE_SOURCE_CONCEPT_ID, EPISODE_NUMBER) %>%
+  select(SUBJECT_ID, COHORT_START_DATE, Tx, EPISODE_START_DATETIME, EPISODE_END_DATETIME, EPISODE_NUMBER, CONCEPT_NAME)
+
+write.csv(Table3, "./cohort_episode.csv")
+
+sql_dead <- "SELECT person_id, death_date, cause_concept_id, cause_source_value
+  FROM CDMPv533_ABMI.dbo.death
+  WHERE person_id in (@Cohort_ID)"
+sql_dead <- SqlRender::render(sql_dead, Cohort_ID = finalCohortID)
+death <- as.data.frame(DatabaseConnector::querySql(connection, sql_dead))
+# 4명 사망
+# PERSON_ID DEATH_DATE CAUSE_CONCEPT_ID CAUSE_SOURCE_VALUE
+# 1   1769255 2021-06-10           255848               폐렴
+# 2   2416026 2018-10-30           197500             대장암
+# 3   2636060 2020-05-05           255848               폐렴
+# 4   3394641 2021-01-14           197500 맹장의 악성 신생물
+
+# Table 3
+# SUBJECT_ID	Tx	        cycle	result	 원인
+# 1326204	    FOLFOX	    12    Improved
+# 1769255	    FOLFOX_Bev	12	  Dead	   폐렴
+# 1932118	    FOLFOX	    12    Improved
+# 1936740	    FOLFOX	    12    Improved
+# 2096883	    FOLFOX	    6     Improved
+# 2416026	    FOLFIRI_Bev	5	    Dead	   대장암
+# 2636060	    FOLFOX	    10	  Dead	   폐렴
+# 2749346	    FOLFOX	    12    Improved
+# 2806898	    FOLFOX	    12    Improved
+# 3014153	    FOLFOX	    10    Improved
+# 3181004	    FOLFOX	    16    Improved
+# 3286361	    FOLFOX	    11    Improved
+# 3394641	    FOLFIRI_Bev	15	  Dead	   맹장의 악성 신생물
+# 4053065	    FOLFOX	    12    Improved
+
+

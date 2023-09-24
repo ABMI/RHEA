@@ -1,0 +1,26 @@
+{
+    "id": "0B96BDBA",
+    "path": "~/code/RHEA/inst/Dashboard/app.R",
+    "project_path": "inst/Dashboard/app.R",
+    "type": "r_source",
+    "hash": "1167775922",
+    "contents": "",
+    "dirty": false,
+    "created": 1685607739971.0,
+    "source_on_save": false,
+    "relative_order": 2,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "949,31",
+        "scrollLine": "0"
+    },
+    "folds": "435|24|446|4|\n447|24|458|4|\n462|25|474|4|\n475|25|487|4|\n490|29|761|4|\n764|30|792|4|\n973|29|1019|4|\n1020|30|1075|4|\n1078|26|1480|4|\n1489|39|1525|4|\n1526|34|1562|4|\n1570|39|1576|4|\n1577|33|1583|4|\n1584|37|1590|4|\n1591|36|1597|4|\n1598|37|1604|4|\n1607|31|1613|4|\n1621|32|1638|4|\n1639|33|1655|4|\n1656|33|1672|4|\n1673|33|1689|4|\n1711|57|1719|6|\n1727|46|1731|25|\n1743|37|1759|4|\n",
+    "lastKnownWriteTime": 1685696880,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1685696880501,
+    "read_only": false,
+    "read_only_alternatives": []
+}

@@ -1,0 +1,697 @@
+
+# load the cohort table 1)FOLFOX+Bev 2)FOLFIRI+Bev
+# sql_FOLFOX <- "SELECT * FROM [cohortDb].[dbo].[seol_FOLFOX]" # 교수님 의견에 따른 추가 분석
+sql_FOLFOX_Bev <- "SELECT * FROM [cohortDb].[dbo].[seol_FOLFOX_Bev]"
+sql_FOLFIRI_Bev <- "SELECT * FROM [cohortDb].[dbo].[seol_FOLFIRI_Bev]"
+
+
+# FOLFOX <- as.data.frame(DatabaseConnector::querySql(connection, sql_FOLFOX))
+FOLFOX_Bev <- as.data.frame(DatabaseConnector::querySql(connection, sql_FOLFOX_Bev))
+FOLFIRI_Bev <- as.data.frame(DatabaseConnector::querySql(connection, sql_FOLFIRI_Bev))
+
+# Tag Tx
+# FOLFOX$Tx <- "FOLFOX" #1567
+FOLFOX_Bev$Tx <- "FOLFOX_Bev" #386
+FOLFIRI_Bev$Tx <- "FOLFIRI_Bev" #225
+
+p3Cohort <- rbind(FOLFOX_Bev, FOLFIRI_Bev) #611
+
+# 같은기간 내 여러 ChemoTx 받은 환자 삭제 (어떤 치료를 먼저 받았는지 알 수 없음)
+p3Cohort <- p3Cohort %>%
+  group_by(SUBJECT_ID) %>%
+  filter(n() == 1) %>%
+  ungroup() #475
+
+G3cohort <- rbind(FOLFOX, p3Cohort)
+
+######################################
+#### Table 1 Chemotherapy regimen ####
+######################################
+table(p3Cohort$Tx)
+# FOLFOX_Bev 318
+# FOLFIRI_Bev 157
+# total 475
+
+CohortID <- as.vector(p3Cohort$SUBJECT_ID)
+# CohortID <- as.vector(FOLFOX$SUBJECT_ID)
+CohortID <- paste(CohortID, collapse = ", ")
+
+sql_cohortInfo <- "SELECT person_id, year_of_birth, gender_source_value
+  FROM CDMPv533_ABMI.dbo.person
+  WHERE person_id in (@Cohort_ID)"
+
+sql_cohortInfo <- SqlRender::render(sql_cohortInfo,
+                                    Cohort_ID = CohortID)
+
+Info <- as.data.frame(DatabaseConnector::querySql(connection,
+                                                  sql_cohortInfo))
+
+Table1 <- merge(p3Cohort, Info, by.x = "SUBJECT_ID", by.y = "PERSON_ID")
+# Table1 <- merge(FOLFOX, Info, by.x = "SUBJECT_ID", by.y = "PERSON_ID")
+Table1$age <- year(Table1$COHORT_START_DATE) - Table1$YEAR_OF_BIRTH
+
+# FOLFOX_T1 <- Table1
+FOLFIRI_Bev_T1 <- Table1 %>% filter(Tx == "FOLFIRI_Bev")
+FOLFOX_Bev_T1 <- Table1 %>% filter(Tx == "FOLFOX_Bev")
+
+
+# # FOR Kaplan-Meier 3 group
+# CohortID <- as.vector(G3cohort$SUBJECT_ID)
+# CohortID <- paste(CohortID, collapse = ", ")
+#
+# sql_cohortInfo <- "SELECT person_id, year_of_birth, gender_source_value
+#   FROM CDMPv533_ABMI.dbo.person
+#   WHERE person_id in (@Cohort_ID)"
+#
+# sql_cohortInfo <- SqlRender::render(sql_cohortInfo,
+#                                     Cohort_ID = CohortID)
+#
+# Info <- as.data.frame(DatabaseConnector::querySql(connection,
+#                                                   sql_cohortInfo))
+#
+# Table1 <- merge(G3cohort, Info, by.x = "SUBJECT_ID", by.y = "PERSON_ID")
+# Table1$age <- year(Table1$COHORT_START_DATE) - Table1$YEAR_OF_BIRTH
+
+#############################
+#### Table 1 Gender, Age ####
+#############################
+# FOLFIRI_Bev_T1
+table(FOLFIRI_Bev_T1$GENDER_SOURCE_VALUE)
+# F 52
+# M 105
+
+median(FOLFIRI_Bev_T1$age)
+min(FOLFIRI_Bev_T1$age)
+max(FOLFIRI_Bev_T1$age)
+sum(FOLFIRI_Bev_T1$age >= 65)
+sum(FOLFIRI_Bev_T1$age >= 70)
+# median age 59
+# range 31 - 82
+# >=65 54
+# >=70 33
+
+# FOLFOX_Bev_T1
+table(FOLFOX_Bev_T1$GENDER_SOURCE_VALUE)
+# F 120
+# M 198
+
+median(FOLFOX_Bev_T1$age)
+min(FOLFOX_Bev_T1$age)
+max(FOLFOX_Bev_T1$age)
+sum(FOLFOX_Bev_T1$age >= 65)
+sum(FOLFOX_Bev_T1$age >= 70)
+# median age 60
+# range 30 - 83
+# >=65 108
+# >=70 72
+
+
+# FOLFOX T1
+# table(FOLFOX_T1$GENDER_SOURCE_VALUE)
+# F 639
+# M 928
+
+# median(FOLFOX_T1$age)
+# min(FOLFOX_T1$age)
+# max(FOLFOX_T1$age)
+# sum(FOLFOX_T1$age >= 65)
+# sum(FOLFOX_T1$age >= 70)
+# median age 60
+# range 18 - 86
+# >=65 528
+# >=70 277
+
+
+# Site of primary tumor -> Colon, Rectum, Multiple
+sql_colon <- "SELECT * FROM cohortDb.dbo.seol_ca_colon WHERE SUBJECT_ID in (@Cohort_ID)"
+sql_colon <- SqlRender::render(sql_colon, Cohort_ID = CohortID)
+colon <- as.data.frame(DatabaseConnector::querySql(connection, sql_colon))
+# colon 1283
+
+sql_rectum <- "SELECT * FROM cohortDb.dbo.seol_ca_rectum WHERE SUBJECT_ID in (@Cohort_ID)"
+sql_rectum <- SqlRender::render(sql_rectum, Cohort_ID = CohortID)
+rectum <- as.data.frame(DatabaseConnector::querySql(connection, sql_rectum))
+# rectum 709
+
+multiple <- colon %>% inner_join(rectum, by = "SUBJECT_ID") %>% select(SUBJECT_ID)
+# multiple 428
+
+# 중복되지 않은 환자 수
+pure_colon <- colon %>% anti_join(multiple, by= "SUBJECT_ID") # 855
+pure_rectum <- rectum %>% anti_join(multiple, by= "SUBJECT_ID") # 281
+
+# chemotx join
+colon_tx <- pure_colon %>%
+  left_join(select(FOLFIRI_Bev_T1, SUBJECT_ID, Tx), by = "SUBJECT_ID") %>%
+  left_join(select(FOLFOX_Bev_T1, SUBJECT_ID, Tx), by = "SUBJECT_ID") %>%
+  mutate(Combined_Tx = ifelse(!is.na(Tx.x), Tx.x, Tx.y)) %>%
+  select(COHORT_DEFINITION_ID, SUBJECT_ID, Combined_Tx)
+
+# colon_tx <- pure_colon %>%
+#   left_join(select(FOLFOX_T1, SUBJECT_ID, Tx), by = "SUBJECT_ID", multiple = "all") %>%
+#   select(COHORT_DEFINITION_ID, SUBJECT_ID, Tx)
+
+rectum_tx <- pure_rectum %>%
+  left_join(select(FOLFIRI_Bev_T1, SUBJECT_ID, Tx), by = "SUBJECT_ID") %>%
+  left_join(select(FOLFOX_Bev_T1, SUBJECT_ID, Tx), by = "SUBJECT_ID") %>%
+  mutate(Combined_Tx = ifelse(!is.na(Tx.x), Tx.x, Tx.y)) %>%
+  select(COHORT_DEFINITION_ID, SUBJECT_ID, Combined_Tx)
+
+# rectum_tx <- pure_rectum %>%
+#   left_join(select(FOLFOX_T1, SUBJECT_ID, Tx), by = "SUBJECT_ID", multiple = "all") %>%
+#   select(COHORT_DEFINITION_ID, SUBJECT_ID, Tx)
+
+multiple_tx <- multiple %>%
+  left_join(select(FOLFIRI_Bev_T1, SUBJECT_ID, Tx), by = "SUBJECT_ID") %>%
+  left_join(select(FOLFOX_Bev_T1, SUBJECT_ID, Tx), by = "SUBJECT_ID") %>%
+  mutate(Combined_Tx = ifelse(!is.na(Tx.x), Tx.x, Tx.y)) %>%
+  select(SUBJECT_ID, Combined_Tx)
+
+# multiple_tx <- multiple %>%
+#   left_join(select(FOLFOX_T1, SUBJECT_ID, Tx), by = "SUBJECT_ID", multiple = "all") %>%
+#   select(SUBJECT_ID, SUBJECT_ID, Tx)
+
+
+# FOLFIRI_Bev
+FOLFIRI_Bev_colon <- colon_tx %>% filter(Combined_Tx == "FOLFIRI_Bev")
+FOLFIRI_Bev_rectum <- rectum_tx %>% filter(Combined_Tx == "FOLFIRI_Bev")
+FOLFIRI_Bev_multi <- multiple_tx %>% filter(Combined_Tx == "FOLFIRI_Bev")
+nrow(FOLFIRI_Bev_colon)
+nrow(FOLFIRI_Bev_rectum)
+nrow(FOLFIRI_Bev_multi)
+# colon 88
+# rectum 29
+# multiple 40
+
+
+# FOLFOX_Bev
+FOLFOX_Bev_colon <- colon_tx %>% filter(Combined_Tx == "FOLFOX_Bev")
+FOLFOX_Bev_rectum <- rectum_tx %>% filter(Combined_Tx == "FOLFOX_Bev")
+FOLFOX_Bev_multi <- multiple_tx %>% filter(Combined_Tx == "FOLFOX_Bev")
+nrow(FOLFOX_Bev_colon)
+nrow(FOLFOX_Bev_rectum)
+nrow(FOLFOX_Bev_multi)
+# colon 161
+# rectum 88
+# multiple 69
+
+
+# FOLFOX
+# FOLFOX_colon <- colon_tx
+# FOLFOX_rectum <- rectum_tx
+# FOLFOX_multi <- multiple_tx
+# nrow(FOLFOX_colon)
+# nrow(FOLFOX_rectum)
+# nrow(FOLFOX_multi)
+# colon 856
+# rectum 282
+# multiple 429
+
+
+# Gene Mutation
+# load note data
+sql_note <- "SELECT note_id, person_id, note_date, note_title, note_text
+             from CDMPv533_ABMI.dbo.note
+             WHERE person_id in (@Cohort_ID) and note_title like 'Pathology%';"
+
+sql_note <- SqlRender::render(sql_note, Cohort_ID = CohortID)
+pathologyReport <- as.data.frame(DatabaseConnector::querySql(connection, sql_note))
+pathologyReport$NOTE_TEXT <- gsub('<.{1,10}>|&#x0d;|H&amp;|&gt;|&lt;|&amp;|&quot;', ' ',
+                                  pathologyReport$NOTE_TEXT,
+                                  perl = T)
+
+# choose only Biopsy report
+pathologyReport$RESULT_TYPE <- NA
+pathologyReport$onlyBiopsyReport <- NA
+pathologyReport$onlyColorectalReport <- NA
+for (i in 1:nrow(pathologyReport)){
+  if (grepl("Biopsy Result", pathologyReport$NOTE_TEXT[i]) == F){
+    pathologyReport$onlyBiopsyReport[i] <- "no biopsy results"
+  }else if (regexpr("Gross Result", pathologyReport$NOTE_TEXT[i])[1] < 10){
+    pathologyReport$onlyBiopsyReport[i] <- substring(pathologyReport$NOTE_TEXT[i],
+                                                     first = regexpr("Biopsy Result", pathologyReport$NOTE_TEXT[i])[1])
+  }else{
+    pathologyReport$onlyBiopsyReport[i] <- substring(pathologyReport$NOTE_TEXT[i],
+                                                     first = regexpr("Biopsy Result", pathologyReport$NOTE_TEXT[i])[1],
+                                                     last = regexpr("Gross Result", pathologyReport$NOTE_TEXT[i])[1]-1)
+  }
+  # split result type and reports
+  pathologyReport$RESULT_TYPE[i] <- substring(pathologyReport$onlyBiopsyReport[i],
+                                              first = 0,
+                                              last = str_locate(pathologyReport$onlyBiopsyReport[i],
+                                                                "Biopsy Result:\\s+")[2])
+  pathologyReport$onlyBiopsyReport[i] <- substring(pathologyReport$onlyBiopsyReport[i],
+                                                   first = str_locate(pathologyReport$onlyBiopsyReport[i],
+                                                                      "Biopsy Result:\\s+")[2]+1)
+
+  # choose only colorectal pathology report
+  if(grepl("Rectum|rectal|Colon|colitis|Rectosigmoid\\sjuction|rectosigmoid\\sjunctional\\sca|LST",
+           pathologyReport$onlyBiopsyReport[i],
+           ignore.case = T)){
+    pathologyReport$onlyColorectalReport[i] <- "YES"
+  }else{
+    pathologyReport$onlyColorectalReport[i] <- "No"
+  }
+}
+
+pathologyReport <- pathologyReport %>%
+  filter(onlyColorectalReport == "YES") %>%
+  select(NOTE_ID, PERSON_ID, NOTE_DATE, NOTE_TITLE, RESULT_TYPE, onlyBiopsyReport)
+
+# trim blank
+pathologyReport$RESULT_TYPE <- gsub("^\\s+", "", pathologyReport$RESULT_TYPE)
+pathologyReport$RESULT_TYPE <- gsub(":\\s+", "", pathologyReport$RESULT_TYPE)
+
+crcPtBioNote <- pathologyReport
+### Biomarker ####
+# MSI
+crcPtBioNote$MSI <- substr(crcPtBioNote$onlyBiopsyReport,
+                           (str_locate(crcPtBioNote$onlyBiopsyReport,
+                                       "(MSI)(.+)(yes|no)(\\s+)")[,2])+1,
+                           (str_locate(crcPtBioNote$onlyBiopsyReport,
+                                       "(MSI)(.+)(yes|no)(\\s+)(.+)")[,2])+3)
+
+crcPtBioNote$MSI <- gsub("(\n|\\s+\n|\r)(.+)", "", crcPtBioNote$MSI)
+crcPtBioNote$MSI <- gsub("MSI-H|MSI-high|MSI-High", "High", crcPtBioNote$MSI)
+crcPtBioNote$MSI <- gsub("MSI-L|MSI-low|MSI-Low", "Low", crcPtBioNote$MSI)
+crcPtBioNote$MSI <- gsub("MSS-high|MSS-High|MSS-low|MSS-Low|MSS", "Stable", crcPtBioNote$MSI)
+
+# K-ras
+crcPtBioNote$Kras <- substr(crcPtBioNote$onlyBiopsyReport,
+                            (str_locate(crcPtBioNote$onlyBiopsyReport,
+                                        "(Kras mutation is)(\\s+)")[,2]+1),
+                            (str_locate(crcPtBioNote$onlyBiopsyReport,
+                                        "(Kras mutation is)(.+)(detected)")[,2]))
+for(i in 1:nrow(crcPtBioNote)){
+  if(is.na(crcPtBioNote$Kras[i])){
+    crcPtBioNote$Kras[i] <- substr(crcPtBioNote$onlyBiopsyReport[i],
+                                   (str_locate(crcPtBioNote$onlyBiopsyReport[i],
+                                               "(\n)(.+)(KRAS,)(.+)(detected)")[,1]),
+                                   (str_locate(crcPtBioNote$onlyBiopsyReport[i],
+                                               "(\n)(.+)(KRAS,)(.+)(detected)")[,2]))}
+}
+for(i in 1:nrow(crcPtBioNote)){
+  if(is.na(crcPtBioNote$Kras[i])){
+    crcPtBioNote$Kras[i] <- NA
+  }else if(str_detect(crcPtBioNote$Kras[i],
+                      "^detected")){
+    crcPtBioNote$Kras[i] <- "detected"
+  }else if(str_detect(crcPtBioNote$Kras[i],
+                      "^not detected")){
+    crcPtBioNote$Kras[i] <- "not detected"
+  }else if(str_detect(crcPtBioNote$Kras[i],
+                      "(\n)(No)|(Genomic)(.+)(not)|(No clinically)")){
+    crcPtBioNote$Kras[i] <- "not detected"
+  }else{
+    crcPtBioNote$Kras[i] <- "detected"
+  }
+}
+
+# N-ras
+crcPtBioNote$Nras <- substr(crcPtBioNote$onlyBiopsyReport,
+                            (str_locate(crcPtBioNote$onlyBiopsyReport,
+                                        "(N-ras\\s)(.+)|(\nNras\\s)")[,1]),
+                            (str_locate(crcPtBioNote$onlyBiopsyReport,
+                                        "(N-ras\\s)(.+)|(\nNras mutation is)(.+)(detected)")[,2]))
+for(i in 1:nrow(crcPtBioNote)){
+  if(is.na(crcPtBioNote$Nras[i])){
+    crcPtBioNote$Nras[i] <- substr(crcPtBioNote$onlyBiopsyReport[i],
+                                   (str_locate(crcPtBioNote$onlyBiopsyReport[i],
+                                               "(\n)(.+)(NRAS,)(.+)(detected)")[,1]),
+                                   (str_locate(crcPtBioNote$onlyBiopsyReport[i],
+                                               "(\n)(.+)(NRAS,)(.+)(detected)")[,2]))}
+}
+for(i in 1:nrow(crcPtBioNote)){
+  if(is.na(crcPtBioNote$Nras[i])){
+    crcPtBioNote$Nras[i] <- NA
+  }else if(str_detect(crcPtBioNote$Nras[i],
+                      "(\nNras mutation)(.+)(is detected)")){
+    crcPtBioNote$Nras[i] <- "detected"
+  }else if(str_detect(crcPtBioNote$Nras[i],
+                      "(\nNras mutation)(.+)(not detected)")){
+    crcPtBioNote$Nras[i] <- "not detected"
+  }else if(str_detect(crcPtBioNote$Nras[i],
+                      "(N-ras 유전자)")){
+    crcPtBioNote$Nras[i] <- "not detected"
+  }else if(str_detect(crcPtBioNote$Nras[i],
+                      "(\n)(No)|(Genomic)(.+)(not)|(No clinically)")){
+    crcPtBioNote$Nras[i] <- "not detected"
+  }else{
+    crcPtBioNote$Nras[i] <- "detected"
+  }
+}
+
+# BRAF
+crcPtBioNote$BRAF <- substr(crcPtBioNote$onlyBiopsyReport,
+                            str_locate(crcPtBioNote$onlyBiopsyReport,
+                                       "(BRAF)(.+)(;|:)")[,2],
+                            str_locate(crcPtBioNote$onlyBiopsyReport,
+                                       "(BRAF)(.+)(;|:)(.+)(tive)")[,2])
+
+for(i in 1:nrow(crcPtBioNote)){
+  if(is.na(crcPtBioNote$BRAF[i])){
+    crcPtBioNote$BRAF[i] <- substr(crcPtBioNote$onlyBiopsyReport[i],
+                                   (str_locate(crcPtBioNote$onlyBiopsyReport[i],
+                                               "(\n)(.+)(BRAF)(.+)(detected)")[,1]),
+                                   (str_locate(crcPtBioNote$onlyBiopsyReport[i],
+                                               "(\n)(.+)(BRAF,)(.+)(detected)")[,2]))}
+}
+for(i in 1:nrow(crcPtBioNote)){
+  if(is.na(crcPtBioNote$BRAF[i])){
+    crcPtBioNote$BRAF[i] <- NA
+  }else if(str_detect(crcPtBioNote$BRAF[i],
+                      "(;\\s+negative|:\\s+Negative|:\\s+negative)")){
+    crcPtBioNote$BRAF[i] <- "not detected"
+  }else if(str_detect(crcPtBioNote$BRAF[i],
+                      "(; positive)")){
+    crcPtBioNote$BRAF[i] <- "detected"
+  }else if(str_detect(crcPtBioNote$BRAF[i],
+                      "(\n)(No)|(Genomic)(.+)(not)|(No clinically)")){
+    crcPtBioNote$BRAF[i] <- "not detected"
+  }else{
+    crcPtBioNote$BRAF[i] <- "detected"
+  }
+}
+
+crcPtBioNote <- crcPtBioNote %>% rename('SUBJECT_ID' = 'PERSON_ID')
+GeneMuataion <- crcPtBioNote[, c("SUBJECT_ID", "NOTE_DATE", "MSI", "Kras", "Nras", "BRAF")]
+
+# 데이터 테이블에서 "MSI", "Kras", "Nras", "BRAF" 열의 값이 모두 NA인 행을 삭제
+GeneMuataion <- GeneMuataion %>%
+  filter(!(is.na(MSI)) | !(is.na(Kras)) | !(is.na(Nras)) | !(is.na(BRAF)))
+count(GeneMuataion %>% distinct(SUBJECT_ID))
+# Gene 검사 395 사람 365
+
+Table2 <- merge(Table1, GeneMuataion, by = "SUBJECT_ID")
+Table2$NOTE <- ifelse((Table2$NOTE_DATE-Table2$COHORT_START_DATE) < 0, "before", "after")
+Table2 <- Table2 %>% filter(NOTE == "after")
+
+FOLFIRI_Bev_T2 <- Table2 %>% filter(Tx == "FOLFIRI_Bev")
+FOLFOX_Bev_T2 <- Table2 %>% filter(Tx == "FOLFOX_Bev")
+
+# FOLFOX_T2 <- Table2
+
+#### 중복있음 ####
+# FOLFIRI_Bev_T2
+# MSI
+table(FOLFIRI_Bev_T2$MSI)
+sum(is.na(FOLFIRI_Bev_T2$MSI))
+length(FOLFIRI_Bev_T2$MSI)
+# High  Low  Stable  NA   total
+# 1     2    55      14   72
+
+# Kras
+table(FOLFIRI_Bev_T2$Kras)
+sum(is.na(FOLFIRI_Bev_T2$Kras))
+length(FOLFIRI_Bev_T2$Kras)
+# detected not_detected NA total
+# 23       29           20 72
+
+# Nras
+table(FOLFIRI_Bev_T2$Nras)
+sum(is.na(FOLFIRI_Bev_T2$Nras))
+length(FOLFIRI_Bev_T2$Nras)
+# detected not_detected NA total
+# 0        48           24 72
+
+# BRAF
+table(FOLFIRI_Bev_T2$BRAF)
+sum(is.na(FOLFIRI_Bev_T2$BRAF))
+length(FOLFIRI_Bev_T2$BRAF)
+# detected not_detected NA  total
+# 0        16           56  202
+
+# FOLFOX_Bev_T2
+# MSI
+table(FOLFOX_Bev_T2$MSI)
+sum(is.na(FOLFOX_Bev_T2$MSI))
+length(FOLFOX_Bev_T2$MSI)
+# High  Low  Stable  NA   total
+# 3     1    108     18   130
+
+# Kras
+table(FOLFOX_Bev_T2$Kras)
+sum(is.na(FOLFOX_Bev_T2$Kras))
+length(FOLFOX_Bev_T2$Kras)
+# detected not_detected NA total
+# 57       48           25 130
+
+# Nras
+table(FOLFOX_Bev_T2$Nras)
+sum(is.na(FOLFOX_Bev_T2$Nras))
+length(FOLFOX_Bev_T2$Nras)
+# detected not_detected NA total
+# 3        90           37 130
+
+# BRAF
+table(FOLFOX_Bev_T2$BRAF)
+sum(is.na(FOLFOX_Bev_T2$BRAF))
+length(FOLFOX_Bev_T2$BRAF)
+# detected not_detected NA  total
+# 2        28           100 130
+
+
+# FOLFOX_T2
+# MSI
+# table(FOLFOX_T2$MSI)
+# sum(is.na(FOLFOX_T2$MSI))
+# length(FOLFOX_T2$MSI)
+# # High  Low  Stable  NA   total
+# # 30    7    428     29   494
+#
+# # Kras
+# table(FOLFOX_T2$Kras)
+# sum(is.na(FOLFOX_T2$Kras))
+# length(FOLFOX_T2$Kras)
+# # detected not_detected NA  total
+# # 109      162          223 494
+#
+# # Nras
+# table(FOLFOX_T2$Nras)
+# sum(is.na(FOLFOX_T2$Nras))
+# length(FOLFOX_T2$Nras)
+# # detected not_detected NA  total
+# # 5        219          270 494
+#
+# # BRAF
+# table(FOLFOX_T2$BRAF)
+# sum(is.na(FOLFOX_T2$BRAF))
+# length(FOLFOX_T2$BRAF)
+# # detected not_detected NA  total
+# # 3        117          374 494
+
+########################
+#### Table 2 result ####
+########################
+
+# Dead
+sql_dead <- "SELECT person_id, death_date, cause_concept_id, cause_source_value
+  FROM CDMPv533_ABMI.dbo.death
+  WHERE person_id in (@Cohort_ID)"
+sql_dead <- SqlRender::render(sql_dead, Cohort_ID = CohortID)
+death <- as.data.frame(DatabaseConnector::querySql(connection, sql_dead))
+# death 132
+R_death <- death %>% left_join(select(Table1, SUBJECT_ID, GENDER_SOURCE_VALUE, age, Tx), by = c("PERSON_ID" = "SUBJECT_ID"), multiple = "all")
+table(R_death$Tx)
+# FOLFIRI_Bev  FOLFOX_Bev
+# 47           85
+# FOLFOX 307
+
+FOLFIRI_Bev_T2 <- R_death %>% filter(Tx == "FOLFIRI_Bev")
+FOLFOX_Bev_T2 <- R_death %>% filter(Tx == "FOLFOX_Bev")
+# FOLFOX_T3 <- R_death
+
+# FOLFIRI_Bev_T2
+table(FOLFIRI_Bev_T2$GENDER_SOURCE_VALUE)
+# F 21
+# M 26
+
+median(FOLFIRI_Bev_T2$age)
+min(FOLFIRI_Bev_T2$age)
+max(FOLFIRI_Bev_T2$age)
+# median age 59
+# range 34 - 82
+
+# FOLFOX_Bev_T2
+table(FOLFOX_Bev_T2$GENDER_SOURCE_VALUE)
+# F 34
+# M 51
+
+median(FOLFOX_Bev_T2$age)
+min(FOLFOX_Bev_T2$age)
+max(FOLFOX_Bev_T2$age)
+# median age 60
+# range 39 - 81
+
+# FOLFOX_T3
+table(FOLFOX_T3$GENDER_SOURCE_VALUE)
+# F 34
+# M 51
+
+median(FOLFOX_T3$age)
+min(FOLFOX_T3$age)
+max(FOLFOX_T3$age)
+# median age 60
+# range 39 - 81
+
+
+# Leukopenia
+# Leukopenia 진단받은 사람들 중 COHORT 와 겹치는 사람 추출
+sql_leukopenia <- "SELECT * FROM cohortDb.dbo.seol_leukopenia WHERE SUBJECT_ID in (@Cohort_ID)"
+sql_leukopenia <- SqlRender::render(sql_leukopenia, Cohort_ID = CohortID)
+leukopenia <- as.data.frame(DatabaseConnector::querySql(connection, sql_leukopenia))
+setnames(leukopenia,
+         old = c("COHORT_START_DATE", "COHORT_END_DATE"),
+         new = c("leukopenia_START_DATE", "leukopenia_END_DATE"))
+# Leukopenia 1
+# Leukopenia_FOLFOX 3
+
+T_leukopenia <- merge(Table1, leukopenia[, c("SUBJECT_ID", "leukopenia_START_DATE", "leukopenia_END_DATE")], by = "SUBJECT_ID")
+T_leukopenia$ILD <- ifelse(T_leukopenia$COHORT_START_DATE < T_leukopenia$leukopenia_START_DATE, "after", "before")
+R_leukopenia <- T_leukopenia %>% filter(ILD == "after")
+R_leukopenia <- R_leukopenia %>% select(SUBJECT_ID, GENDER_SOURCE_VALUE, age, Tx)
+# Chemotherapy 이후 Leukopenia 발생한 사람 0
+# Chemotherapy 이후 Leukopenia 발생한 사람_FOLFOX 1
+
+# Neutropenia
+# neutropenia 진단받은 사람들 중 COHORT 와 겹치는 사람 추출
+sql_neutropenia <- "SELECT * FROM cohortDb.dbo.seol_neutropenia_20230904 WHERE SUBJECT_ID in (@Cohort_ID)"
+sql_neutropenia <- SqlRender::render(sql_neutropenia, Cohort_ID = CohortID)
+neutropenia <- as.data.frame(DatabaseConnector::querySql(connection, sql_neutropenia))
+setnames(neutropenia,
+         old = c("COHORT_START_DATE", "COHORT_END_DATE"),
+         new = c("neutropenia_START_DATE", "neutropenia_END_DATE"))
+# Neutropenia 209
+# Neutropenia_FOLFOX 694
+
+T_neutropenia <- merge(Table1, neutropenia[, c("SUBJECT_ID", "neutropenia_START_DATE", "neutropenia_END_DATE")], by = "SUBJECT_ID")
+T_neutropenia$neutropenia <- ifelse(T_neutropenia$COHORT_START_DATE < T_neutropenia$neutropenia_START_DATE, "after", "before")
+R_neutropenia <- T_neutropenia %>% filter(neutropenia == "after")
+R_neutropenia <- R_neutropenia %>% select(SUBJECT_ID, GENDER_SOURCE_VALUE, age, Tx)
+table(R_neutropenia$Tx)
+# Chemotherapy 이후 Netropenia 발생한 사람 203
+# Chemotherapy 이후 Netropenia 발생한 사람_FOLFOX 669
+# FOLFIRI_Bev  FOLFOX_Bev
+# 80           123
+
+
+# Diarrhea
+# Diarrhea 진단받은 사람들 중 COHORT 와 겹치는 사람 추출
+sql_diarrhea <- "SELECT * FROM cohortDb.dbo.seol_diarrhea WHERE SUBJECT_ID in (@Cohort_ID)"
+sql_diarrhea <- SqlRender::render(sql_diarrhea, Cohort_ID = CohortID)
+diarrhea <- as.data.frame(DatabaseConnector::querySql(connection, sql_diarrhea))
+setnames(diarrhea,
+         old = c("COHORT_START_DATE", "COHORT_END_DATE"),
+         new = c("diarrhea_START_DATE", "diarrhea_END_DATE"))
+# Diarrhea 475
+# Diarrhea_FOLFOX 1564
+
+T_diarrhea <- merge(Table1, diarrhea[, c("SUBJECT_ID", "diarrhea_START_DATE", "diarrhea_END_DATE")], by = "SUBJECT_ID")
+T_diarrhea$diarrhea <- ifelse(T_diarrhea$COHORT_START_DATE < T_diarrhea$diarrhea_START_DATE, "after", "before")
+R_diarrhea <- T_diarrhea %>% filter(diarrhea == "after")
+R_diarrhea <- R_diarrhea %>% select(SUBJECT_ID, GENDER_SOURCE_VALUE, age, Tx)
+# Chemotherapy 이후 Diarrhea 발생한 사람 0
+# Chemotherapy 이후 Diarrhea 발생한 사람_FOLFOX 0
+
+# peripheral_neuropathy
+# peripheral_neuropathy 진단받은 사람들 중 COHORT 와 겹치는 사람 추출
+sql_neuropathy <- "SELECT * FROM cohortDb.dbo.seol_peripheral_neuropathy WHERE SUBJECT_ID in (@Cohort_ID)"
+sql_neuropathy <- SqlRender::render(sql_neuropathy, Cohort_ID = CohortID)
+neuropathy <- as.data.frame(DatabaseConnector::querySql(connection, sql_neuropathy))
+setnames(neuropathy,
+         old = c("COHORT_START_DATE", "COHORT_END_DATE"),
+         new = c("neuropathy_START_DATE", "neuropathy_END_DATE"))
+# neuropathy 1
+# neuropathy_FOLOFX 2
+
+T_neuropathy <- merge(Table1, neuropathy[, c("SUBJECT_ID", "neuropathy_START_DATE", "neuropathy_END_DATE")], by = "SUBJECT_ID")
+T_neuropathy$neuropathy <- ifelse(T_neuropathy$COHORT_START_DATE < T_neuropathy$neuropathy_START_DATE, "after", "before")
+R_neuropathy <- T_neuropathy %>% filter(neuropathy == "after")
+R_neuropathy <- R_neuropathy %>% select(SUBJECT_ID, GENDER_SOURCE_VALUE, age, Tx)
+# Chemotherapy 이후 neuropathy 발생한 사람 1
+#   SUBJECT_ID GENDER_SOURCE_VALUE age         Tx
+# 1    3189953                   F  42 FOLFOX_Bev
+
+# Chemotherapy 이후 neuropathy 발생한 사람 2
+# SUBJECT_ID GENDER_SOURCE_VALUE age     Tx
+# 1    1619993                   F  68 FOLFOX
+# 2    3258854                   F  26 FOLFOX
+
+# Kaplan-meier curve overall survival
+library(survival)
+library(survminer)
+library(grid)
+library(boot)
+
+km_data <- Table1 %>%
+  select(SUBJECT_ID, Tx, COHORT_START_DATE, COHORT_END_DATE) %>%
+  left_join(R_death %>% mutate(event = 1), by = c("SUBJECT_ID" = "PERSON_ID"), multiple = "all") %>%
+  mutate(event = ifelse(is.na(event), 0, event)) %>%
+  mutate(survival = ifelse(is.na(DEATH_DATE), as.numeric(COHORT_END_DATE - COHORT_START_DATE, units = "days"),
+                           as.numeric(DEATH_DATE - COHORT_START_DATE, units = "days"))) %>%
+  select(SUBJECT_ID, Tx = Tx.x, COHORT_START_DATE,COHORT_END_DATE, DEATH_DATE, event, survival)
+
+km_FOLFOX <- Table1 %>%
+  select(SUBJECT_ID, Tx, COHORT_START_DATE, COHORT_END_DATE) %>%
+  left_join(R_death %>% mutate(event = 1), by = c("SUBJECT_ID" = "PERSON_ID"), multiple = "all") %>%
+  mutate(event = ifelse(is.na(event), 0, event)) %>%
+  mutate(survival = ifelse(is.na(DEATH_DATE), as.numeric(COHORT_END_DATE - COHORT_START_DATE, units = "days"),
+                           as.numeric(DEATH_DATE - COHORT_START_DATE, units = "days"))) %>%
+  select(SUBJECT_ID, Tx = Tx.x, COHORT_START_DATE,COHORT_END_DATE, DEATH_DATE, event, survival)
+
+# km_data <- rbind(km_data, km_FOLFOX)
+
+km_data_modified <- km_data %>%
+  mutate(survival_months = ifelse(is.na(DEATH_DATE),
+                                  as.numeric(COHORT_END_DATE - COHORT_START_DATE, units = "days") / 30.44,
+                                  as.numeric(DEATH_DATE - COHORT_START_DATE, units = "days") / 30.44))
+
+ordered_levels <- c("FOLFIRI_Bev", "FOLFOX_Bev", "FOLFOX")
+km_data_modified$Tx <- factor(km_data_modified$Tx, levels = ordered_levels)
+
+# Kaplan-Meier 생존 곡선 생성
+km_fit <- survfit(Surv(survival_months, event) ~ Tx, data = km_data_modified)
+
+# Kaplan-Meier 생존 곡선 그리기
+km_plot <- ggsurvplot(km_fit, data = km_data_modified,
+                      pval = TRUE, conf.int = TRUE,
+                      ggtheme = theme_classic(),
+                      xlab = "Survival Time (months)", ylab = "Overall survival (probability)",
+                      xlim = c(0, 60),
+                      break.time.by = 6,  # x 축 눈금 간격 설정
+                      risk.table = TRUE,   # Hazard Ratio 및 CI를 포함한 표 생성
+                      legend.title = "")
+
+
+# survdiff 함수의 결과 저장
+survdiff_result <- survdiff(Surv(survival_months, event) ~ Tx, data = km_data_modified)
+#                  N Observed Expected (O-E)^2/E (O-E)^2/V
+# Tx=FOLFIRI_Bev 157       47     48.2    0.0321    0.0513
+# Tx=FOLFOX_Bev  318       85     83.8    0.0185    0.0513
+#
+# Chisq= 0.1  on 1 degrees of freedom, p= 0.8
+
+# N Observed Expected (O-E)^2/E (O-E)^2/V
+# Tx=FOLFIRI_Bev  157       47     29.5     10.37      11.1
+# Tx=FOLFOX_Bev   318       85     52.8     19.61      22.5
+# Tx=FOLFOX      1567      307    356.7      6.92      37.2
+#
+# Chisq= 37.2  on 2 degrees of freedom, p= 8e-09
+
+# 함수 정의: 중위값 계산
+median_func <- function(data, indices) {
+  median(data[indices])
+}
+
+# Tx 그룹별 중위값 및 95% 신뢰 구간 계산
+median_ci <- km_data_modified %>%
+  group_by(Tx) %>%
+  summarise(
+    median = median(survival_months),
+    ci_lower = quantile(boot(data = survival_months, statistic = median_func, R = 1000)$t, probs = 0.025),
+    ci_upper = quantile(boot(data = survival_months, statistic = median_func, R = 1000)$t, probs = 0.975)
+  )
+
+#   Tx          median ci_lower ci_upper
+# 1 FOLFIRI_Bev   27.6     22.7     31.6
+# 2 FOLFOX_Bev    23.9     20.9     28.1
